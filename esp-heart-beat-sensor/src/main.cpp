@@ -3,54 +3,78 @@
 #include <Wire.h>
 
 #include <WiFi.h>
-#include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
 
 #include <ArduinoJson.h>
 
 #include <WebSocketsClient.h>
 #include <SocketIOclient.h>
+#include <Adafruit_DRV2605.h>
 #include <MAX30105.h>
 #include <heartRate.h>
-#include <Adafruit_DRV2605.h>
- 
+#include "secrets.h"
 
-const char* ssid = "SSID";
-const char* password = "PASSWORD";
-const char* address = "192.168.1.1";
+#define DRV_SDA 18  // DRV2605 - SDA no GPIO21
+#define DRV_SCL 19  // DRV2605 - SCL no GPIO22
+#define MAX_SDA 25  // MAX30105 - SDA no GPIO25 (alternativa: 32)
+#define MAX_SCL 26  // MAX30105 - SCL no GPIO26 (alternativa: 33)
 
-#define SDA_PIN 21
-#define SCL_PIN 22
+TwoWire I2C_DRV = TwoWire(0);  // I2C0 para DRV2605 vibrator
+TwoWire I2C_MAX = TwoWire(1);  // I2C1 para MAX30105 heart bit
 
- WiFiMulti wifi;
- SocketIOclient socketIO;
- MAX30105 particleSensor;
+SocketIOclient socketIO;
+Adafruit_DRV2605 drv;
+MAX30105 particleSensor;
 
+const byte RATE_SIZE = 4;
+byte rates[RATE_SIZE];
+byte rateSpot = 0;
 float beatsPerMinute;
 int beatAvg = 0;
 long lastBeat = 0;
 float temperature;
+
+void sendBeat() {
+  Serial.println("Sending beat....");
+  if (socketIO.isConnected()) {
+    JsonDocument doc;
+    JsonArray array = doc.to<JsonArray>();
+    array.add("beat");
+    JsonObject payload = array.add<JsonObject>();
+    payload["beatsPerMinute"] = beatsPerMinute;
+    payload["beatAvg"] = beatAvg;
+    payload["deviceId"] = DEVICE_ID;
+    String output;
+    serializeJson(doc, output);
+    
+    bool send1 = socketIO.sendEVENT(output);
+    Serial.print("Sent event: ");
+    Serial.print(output);
+    Serial.print(" responses: ");
+    Serial.println(send1);
+  } else {
+    Serial.println("WebSocket is not connected. Trying to reconnect...");
+  }
+}
   
- void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length) {
+void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length) {
   switch(type) {
       case sIOtype_DISCONNECT:
           Serial.printf("[IOc] Disconnected!\n");
           break;
       case sIOtype_CONNECT:
           Serial.printf("[IOc] Connected to url: %s\n", payload);
-
-          // join default namespace (no auto join in Socket.IO V3)
           socketIO.send(sIOtype_CONNECT, "/");
           break;
       case sIOtype_EVENT:
       {
           char * sptr = NULL;
           int id = strtol((char *)payload, &sptr, 10);
-          Serial.printf("[IOc] get event: %s id: %d\n", payload, id);
+          Serial.printf("[IOc] get event: %s id: %d length: %u\n", payload, id, length);
           if(id) {
               payload = (uint8_t *)sptr;
           }
-          DynamicJsonDocument doc(1024);
+          JsonDocument doc;
           DeserializationError error = deserializeJson(doc, payload, length);
           if(error) {
               Serial.print(F("deserializeJson() failed: "));
@@ -60,24 +84,10 @@ float temperature;
 
           String eventName = doc[0];
           Serial.printf("[IOc] event name: %s\n", eventName.c_str());
-
-          // Message Includes a ID for a ACK (callback)
-          if(id) {
-              // create JSON message for Socket.IO (ack)
-              DynamicJsonDocument docOut(1024);
-              JsonArray array = docOut.to<JsonArray>();
-
-              // add payload (parameters) for the ack (callback function)
-              JsonObject param1 = array.createNestedObject();
-              param1["now"] = millis();
-
-              // JSON to String (serializion)
-              String output;
-              output += id;
-              serializeJson(docOut, output);
-
-              // Send event
-              socketIO.send(sIOtype_ACK, output);
+          JsonObject data = doc[1]; 
+          int deviceId = data["deviceId"];
+          if (deviceId != DEVICE_ID) {
+            drv.go();
           }
       }
           break;
@@ -96,86 +106,108 @@ float temperature;
   }
 }
 
- void setup() {
-    // Serial.begin(921600);
-    Serial.begin(115200);
-    
-    //Serial.setDebugOutput(true);
-    Serial.setDebugOutput(true);
-    
-    Serial.println();
-    Serial.println();
-    Serial.println();
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  // --- WiFi Connection ---
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(WIFI_SSID);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  // Wait for connection
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  // Check connection
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi connected!");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\n❌ WiFi connection failed!");
+    // Stop further execution if WiFi is not connected
+    while(true) { delay(1000); }
+  }
  
-    for(uint8_t t = 4; t > 0; t--) {
-        Serial.printf("[SETUP] BOOT WAIT %d...\n", t);
-        Serial.flush();
-        delay(1000);
-    }
-    
-    wifi.addAP(ssid, password);
-    
-    //WiFi.disconnect();
-    while(wifi.run() != WL_CONNECTED) {
-        delay(100);
-    }
+  // server address, port and URL
+  Serial.println("Connecting to Socket.IO server...");
+  socketIO.begin(SOCKETIO_HOST, SOCKETIO_PORT, "/socket.io/?EIO=4");
+  socketIO.setExtraHeaders("Connection: keep-alive");
+  socketIO.onEvent(socketIOEvent);
+
+  // initializing vibrator
+  I2C_DRV.begin(DRV_SDA, DRV_SCL, 400000);
+  drv = Adafruit_DRV2605();
+  if (!drv.begin(&I2C_DRV)) {
+    Serial.println("DRV2605 not found!");
+    while (1);
+  }
+
+  // setup heartbit sensor
+  I2C_MAX.begin(MAX_SDA, MAX_SCL, 400000);
+
+  if (!particleSensor.begin(I2C_MAX, I2C_SPEED_FAST)) {
+    Serial.println("MAX30105 not found!");
+    while(1);
+  }
+
+  particleSensor.setup();
+  particleSensor.setPulseAmplitudeRed(0x1F);
+  particleSensor.setPulseAmplitudeGreen(0);
+
+  drv.selectLibrary(1);
+  drv.setMode(DRV2605_MODE_INTTRIG);
+  drv.setWaveform(0, 84); // Efeito háptico
+}
  
-    // server address, port and URL
-    //  webSocket.begin(address, 8080, "/socket");
-    socketIO.begin(address, 8080, "/socket.io/?EIO=4");
-
-    // event handler
-    socketIO.onEvent(socketIOEvent);
-
-    // setup heartbit sensor
-    Wire.begin(SDA_PIN, SCL_PIN);
-
-    if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) {
-        Serial.println("Sensor não encontrado!");
-        while(1);
-    }
-
-    //Setup to sense a nice looking saw tooth on the plotter
-    byte ledBrightness = 0x1F; //Options: 0=Off to 255=50mA
-    byte sampleAverage = 8; //Options: 1, 2, 4, 8, 16, 32
-    byte ledMode = 3; //Options: 1 = Red only, 2 = Red + IR, 3 = Red + IR + Green
-    int sampleRate = 100; //Options: 50, 100, 200, 400, 800, 1000, 1600, 3200
-    int pulseWidth = 411; //Options: 69, 118, 215, 411
-    int adcRange = 4096; //Options: 2048, 4096, 8192, 16384
-
-    particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange); //Configure sensor with these settings
- }
- 
- unsigned long messageTimestamp = 0;
  void loop() {
     socketIO.loop();
 
-    uint64_t now = millis();
+    // Get IR value from sensor
+    long irValue = particleSensor.getIR();  //Reading the IR value
 
-    if(now - messageTimestamp > 2000) {
-        messageTimestamp = now;
+    //If a finger is detected
+    if (irValue > 50000) {
+      if (checkForBeat(irValue) == true) {
+        Serial.print("beat detected. ");
 
-        // create JSON message for Socket.IO (event)
-        DynamicJsonDocument doc(1024);
-        JsonArray array = doc.to<JsonArray>();
+        // Calculate the BPM
+        long delta = millis() - lastBeat;  // Measure duration between two beats
+        lastBeat = millis();
+        beatsPerMinute = 60 / (delta / 1000.0);  // Convert to beats per minute
 
-        // add event name
-        // Hint: socket.on('event_name', ....
-        array.add("esp");
+        // Calculate the average BPM
+        if (beatsPerMinute < 255 && beatsPerMinute > 20) { // Check if the BPM value is within a valid range
+          rates[rateSpot++] = (byte)beatsPerMinute;  // Store this  reading in the array
+          rateSpot %= RATE_SIZE;                     // Wrap variable
 
-        // add payload (parameters) for the event
-        JsonObject param1 = array.createNestedObject();
-        param1["data"] = particleSensor.getIR();
+          // Calculate average of BPM readings
+          beatAvg = 0;
+          for (byte x = 0; x < RATE_SIZE; x++)
+            beatAvg += rates[x];
+          beatAvg /= RATE_SIZE;
 
-        // JSON to String (serialization)
-        String output;
-        serializeJson(doc, output);
+          delay(100);
+        }
 
-        // Send event
-        socketIO.sendEVENT(output);
-
-        // Print JSON for debugging
-        Serial.println(output);
+        sendBeat();
+        //Print the IR value, current BPM value, and average BPM value to the serial monitor
+        Serial.print("IR=");
+        Serial.print(irValue);
+        Serial.print(", BPM=");
+        Serial.print(beatsPerMinute);
+        Serial.print(", Avg BPM=");
+        Serial.println(beatAvg);
+      }
+      else {
+        Serial.println("no beat detected.");
+      }
+    }
+    else {
+      Serial.println("Place your index finger on the sensor with steady pressure.");
     }
  }
  

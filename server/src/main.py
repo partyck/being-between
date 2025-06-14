@@ -1,10 +1,8 @@
 import json
 import os
 
-from flask import Flask, Response
+from flask import Flask, Response, request
 from flask_socketio import SocketIO
-
-# DB initialize
 
 app = Flask(__name__, static_url_path="")
 
@@ -15,17 +13,17 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # SOCKETS
 @socketio.on("connect")
 def on_connect():
-    print("on_connect")
+    print("on_connect", request.sid)
 
 
 @socketio.on("disconnect")
 def on_disconnect():
-    print("on_disconnect")
+    print("on_disconnect", request.sid)
 
 
-@socketio.on("esp")
+@socketio.on("beat")
 def on_esp(data):
-    print("on esp", data)
+    print("Beat from:", data["deviceId"])
     socketio.emit("motor", data)
 
 
