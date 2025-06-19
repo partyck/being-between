@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href='assets/mov-icon.ico' rel='shortcut icon'>
+  <title>Being, Between</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Initial Connect Screen */
+    .connect-screen {
+      text-align: center;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 60px 40px;
+    }
+
+    .artwork-title {
+      font-size: 4em;
+      color: white;
+      font-weight: 100;
+      letter-spacing: 8px;
+      text-transform: uppercase;
+      margin-bottom: 60px;
+    }
+
+    .connect-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      padding: 20px 50px;
+      font-size: 1.3em;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .connect-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.6);
+      transform: translateY(-3px);
+    }
+
+    .connect-btn:disabled {
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Video Interface */
+    .video-interface {
+      display: none;
+      height: 100vh;
+      width: 100vw;
+      position: fixed;
+      top: 0;
+      left: 0;
+      background: #000;
+    }
+
+    .connecting-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .connecting-message {
+      text-align: center;
+      color: white;
+    }
+
+    .connecting-message h2 {
+      font-size: 3em;
+      margin-bottom: 20px;
+      font-weight: 300;
+    }
+
+    .connecting-message p {
+      font-size: 1.5em;
+      margin-bottom: 30px;
+    }
+
+    .video-container {
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      background: #000;
+      display: none;
+    }
+
+    .video-item {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: #000;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* Loading animation */
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- Initial Connect Screen -->
+    <div id="connect-screen" class="connect-screen">
+      <h1 class="artwork-title">Being, Between</h1>
+      <button id="connect-btn" class="connect-btn">Click here to connect</button>
+    </div>
+
+    <!-- Video Interface -->
+    <div id="video-interface" class="video-interface">
+      <!-- Connecting Screen -->
+      <div id="connecting-screen" class="connecting-screen">
+        <div class="connecting-message">
+          <h2>Connecting...</h2>
+          <p>Looking for someone</p>
+          <div class="loading"></div>
+        </div>
+      </div>
+
+      <!-- Video Container (hidden initially) -->
+      <div id="video-container" class="video-container">
+        <video id="remote-video" autoplay></video>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.8/lib/p5.min.js"></script>
+  <script src="script.js"></script>
+</body>
+
+</html>
