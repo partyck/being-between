@@ -12,3 +12,4 @@ config.toml
 
 *.pem
 tmp/
+*/tmp/
