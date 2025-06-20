@@ -33,6 +33,7 @@ float beatsPerMinute;
 int beatAvg = 0;
 long lastBeat = 0;
 float temperature;
+bool isStarted = false;
 
 void sendBeat() {
   Serial.println("Sending beat....");
@@ -86,7 +87,18 @@ void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length)
           Serial.printf("[IOc] event name: %s\n", eventName.c_str());
           JsonObject data = doc[1]; 
           int deviceId = data["deviceId"];
-          if (deviceId != DEVICE_ID) {
+          if (deviceId == DEVICE_ID) {
+            if (eventName == "start-beat") {
+              Serial.println("start-beat");
+              isStarted = true;
+            }
+            else if (eventName == "stop-beat") {
+              Serial.println("stop-beat");
+              isStarted = false;
+            }
+          }
+          else if (eventName == "motor") {
+            Serial.println("motor!");
             drv.go();
           }
       }
@@ -134,7 +146,8 @@ void setup() {
  
   // server address, port and URL
   Serial.println("Connecting to Socket.IO server...");
-  socketIO.begin(SOCKETIO_HOST, SOCKETIO_PORT, "/socket.io/?EIO=4");
+  // socketIO.begin(SOCKETIO_HOST, SOCKETIO_PORT, "/socket.io/?EIO=4");
+  socketIO.beginSSL(SOCKETIO_HOST, SOCKETIO_PORT, "/socket.io/?EIO=4");
   socketIO.setExtraHeaders("Connection: keep-alive");
   socketIO.onEvent(socketIOEvent);
 
@@ -193,7 +206,9 @@ void setup() {
           delay(100);
         }
 
-        sendBeat();
+        if (isStarted) {
+          sendBeat();
+        }
         //Print the IR value, current BPM value, and average BPM value to the serial monitor
         Serial.print("IR=");
         Serial.print(irValue);
@@ -203,11 +218,11 @@ void setup() {
         Serial.println(beatAvg);
       }
       else {
-        Serial.println("no beat detected.");
+        // Serial.println("no beat detected.");
       }
     }
     else {
-      Serial.println("Place your index finger on the sensor with steady pressure.");
+      // Serial.println("Place your index finger on the sensor with steady pressure.");
     }
  }
  

@@ -12,7 +12,7 @@ const DEVICE_ID = parseInt(params.get("deviceid"), 10);
 const room = 'video-room';
 const searchDuration = 20;
 const sessionDuration = 180;
-const espDuration = 60;
+const espDuration = 30;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
 const videoFiles = [
@@ -23,6 +23,7 @@ const videoFiles = [
 // variables
 let audioPlayer = null;
 let isConnected = false;
+let isExperience = false;
 let localStream;
 let peerConnection;
 let iceCandidateQueue = [];
@@ -97,6 +98,7 @@ function startExperience() {
   startAudio(sessionAudioFile);
   connectingScreen.style.display = 'none';
   videoContainer.style.display = 'block';
+  isExperience = true;
   startSessionTimer();
   startEspTimmer();
 }
@@ -117,8 +119,10 @@ function startFakeExperience() {
     console.log('✅ Video loaded successfully');
     connectingScreen.style.display = 'none';
     videoContainer.style.display = 'block';
+    isExperience = true;
     startAudio(sessionAudioFile);
     startSessionTimer();
+    startFakeEspTimmer();
   };
 
   remoteVideo.onerror = function (error) {
@@ -131,8 +135,27 @@ function startEspTimmer() {
   setTimeout(() => {
     console.log(`⏰ Esp timeout reached.`);
     socket.emit('start-beat', { deviceId: DEVICE_ID });
-  }, sessionDuration * 1000);
+  }, espDuration * 1000);
 }
+
+function startFakeEspTimmer() {
+  console.log(`⏰ Starting esp fake timeout: ${espDuration} seconds`);
+  setTimeout(() => {
+    console.log(`⏰ Esp fake timeout reached.`);
+    sendFakeBeat();
+    socket.emit('beat', { deviceId: other_device });
+
+  }, espDuration * 1000);
+}
+
+let sendFakeBeat = () => {
+  if (isExperience) {
+    console.log(`❤️ beat!`);
+    let other_device = DEVICE_ID == 1 ? 2 : 1;
+    socket.emit('beat', { deviceId: other_device })
+    setTimeout(() => sendFakeBeat(), 1000);
+  }
+};
 
 function startSessionTimer() {
   console.log(`⏰ Starting session timeout: ${sessionDuration} seconds`);
@@ -176,6 +199,7 @@ function endSession() {
     connectBtn.style.opacity = '1';
 
     isConnected = false;
+    isExperience = false;
     localStream = null;
     peerConnection = null;
 
