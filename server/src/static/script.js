@@ -16,8 +16,8 @@ const espDuration = 43;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
 const videoFiles = [
-  'https://storage.googleapis.com/being-between-fake-videos/fake1.mp4',
-  'https://storage.googleapis.com/being-between-fake-videos/fake2.mp4',
+  'fake-video-1.mp4',
+  'fake-video-2.mp4',
 ];
 
 // variables
