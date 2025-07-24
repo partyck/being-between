@@ -1,0 +1,103 @@
+# docker-compose.yml - Being, Between with Avatar Integration
+
+version: '3.8'
+
+services:
+  # Your existing Flask WebRTC server
+  being-between-main:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: being_between_main
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./static:/being-between/static
+      - ./certs:/being-between/certs
+      - ./logs:/being-between/logs:rw
+    environment:
+      - PORT=8080
+      - AVATAR_ENABLED=true
+    networks:
+      - being_between_network
+    restart: unless-stopped
+    depends_on:
+      - avatar-server
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # New Avatar AI server
+  avatar-server:
+    build:
+      context: ./avatar_system
+      dockerfile: Dockerfile.avatar
+    container_name: being_between_avatar
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./avatar_system/avatar_videos:/app/avatar_videos:ro
+      - ./logs:/app/logs:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    networks:
+      - being_between_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio, websockets; print('Avatar server healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Optional: Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    container_name: being_between_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./logs:/var/log/nginx:rw
+    networks:
+      - being_between_network
+    depends_on:
+      - being-between-main
+    restart: unless-stopped
+    profiles: ["production"]
+
+  # Development tools
+  logs-viewer:
+    image: amir20/dozzle:latest
+    container_name: being_between_logs
+    ports:
+      - "9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - being_between_network
+    profiles: ["development"]
+
+networks:
+  being_between_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  logs:
+    driver: local
+
+# Usage Examples:
+# Development (both systems):    docker-compose up
+# Production (with nginx):       docker-compose --profile production up -d
+# Development (with log viewer): docker-compose --profile development up
+# Avatar only:                   docker-compose up avatar-server
+# Main system only:              docker-compose up being-between-main
