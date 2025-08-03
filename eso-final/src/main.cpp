@@ -26,13 +26,6 @@ SocketIOclient socketIO;
 Adafruit_DRV2605 drv;
 MAX30105 particleSensor;
 
-const byte RATE_SIZE = 4;
-byte rates[RATE_SIZE];
-byte rateSpot = 0;
-float beatsPerMinute;
-int beatAvg = 0;
-long lastBeat = 0;
-float temperature;
 bool isStarted = false;
 bool sentStart = false;
 bool fingerMisplaced = false;
@@ -47,8 +40,6 @@ void sendBeat() {
   JsonArray array = doc.to<JsonArray>();
   array.add("beat");
   JsonObject payload = array.add<JsonObject>();
-  payload["beatsPerMinute"] = beatsPerMinute;
-  payload["beatAvg"] = beatAvg;
   payload["deviceId"] = DEVICE_ID;
   String output;
   serializeJson(doc, output);
@@ -239,45 +230,15 @@ void setup() {
       sendFingerPlacement(false);
       if (checkForBeat(irValue) == true) {
         Serial.print("beat detected. ");
-
-        // Calculate the BPM
-        long delta = millis() - lastBeat;  // Measure duration between two beats
-        lastBeat = millis();
-        beatsPerMinute = 60 / (delta / 1000.0);  // Convert to beats per minute
-
-        // Calculate the average BPM
-        if (beatsPerMinute < 255 && beatsPerMinute > 20) { // Check if the BPM value is within a valid range
-          rates[rateSpot++] = (byte)beatsPerMinute;  // Store this  reading in the array
-          rateSpot %= RATE_SIZE;                     // Wrap variable
-
-          // Calculate average of BPM readings
-          beatAvg = 0;
-          for (byte x = 0; x < RATE_SIZE; x++)
-            beatAvg += rates[x];
-          beatAvg /= RATE_SIZE;
-
-          delay(100);
-        }
-
+        Serial.print("IR=");
+        Serial.println(irValue);
         if (isStarted) {
           sendBeat();
         }
-        //Print the IR value, current BPM value, and average BPM value to the serial monitor
-        Serial.print("IR=");
-        Serial.print(irValue);
-        Serial.print(", BPM=");
-        Serial.print(beatsPerMinute);
-        Serial.print(", Avg BPM=");
-        Serial.println(beatAvg);
-      }
-      else {
-        // Serial.println("no beat detected.");
       }
     }
     else {
       sendFingerPlacement(true);
-      //  sentStart = false;
-      // Serial.println("Place your index finger on the sensor with steady pressure.");
     }
  }
  
