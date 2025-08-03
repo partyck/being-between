@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg 
+    width="60mm"
+    height="32mm"
+    viewBox="0 0 60 32"
+    xmlns="http://www.w3.org/2000/svg">
+
+    <rect
+        stroke="red"
+        x="54"
+        y="1"
+        width="5"
+        height="29">
+    </rect>
+    <rect
+        stroke="red"
+        x="1"
+        y="1"
+        width="5"
+        height="29">
+    </rect>
+    <rect
+        stroke="blue"
+        x="5"
+        y="1"
+        width="50"
+        height="29">
+    </rect>
+</svg>

@@ -1,0 +1,24 @@
+<svg 
+  width="100mm" 
+  height="150mm" 
+  viewBox="0 0 100 150" 
+  xmlns="http://www.w3.org/2000/svg">
+
+  <rect
+    x="10"
+    y="10"
+    width="164"
+    height="217"
+    rx="5"
+    ry="5"/>
+
+  <rect
+    x="10"
+    y="65"
+    width="164"
+    height="97"
+    fill="red"
+    />
+
+
+</svg>
