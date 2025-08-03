@@ -126,7 +126,6 @@ void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length)
           }
 
           String eventName = doc[0];
-          // Serial.printf("[IOc] event name: %s\n", eventName.c_str());
           JsonObject data = doc[1]; 
           int deviceId = data["deviceId"];
           if (deviceId == DEVICE_ID) {
@@ -134,16 +133,21 @@ void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length)
               Serial.println("start-beat");
               isStarted = true;
             }
-            else if (eventName == "stop-beat") {
-              Serial.println("stop-beat");
+            else if (eventName == "stop") {
+              Serial.println("this stop");
               isStarted = false;
               sentStart = false;
               fingerMisplaced = false;
             }
           }
-          else if (eventName == "motor") {
-            Serial.println("motor!");
-            drv.go();
+          else {
+            if (eventName == "motor") {
+              Serial.println("motor!");
+              drv.go();
+            }
+            if (eventName == "stop") {
+              Serial.println("other stop");
+            }
           }
       }
           break;
