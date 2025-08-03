@@ -62,16 +62,22 @@ def on_start(data):
     socketio.emit("start", data)
 
 
+@socketio.on("experience-started")
+def on_experience_started(data):
+    print("experience-started ", data["deviceId"])
+    socketio.emit("experience-started", data)
+
+
 @socketio.on("start-beat")
 def on_start_beat(data):
     print("Start beat from:", data["deviceId"])
     socketio.emit("start-beat", data)
 
 
-@socketio.on("stop-beat")
-def on_stop_beat(data):
-    print("Stop beat from:", data["deviceId"])
-    socketio.emit("stop-beat", data)
+@socketio.on("stop")
+def on_stop(data):
+    print("Stop from:", data["deviceId"])
+    socketio.emit("stop", data)
 
 
 @socketio.on("beat")
@@ -82,7 +88,7 @@ def on_beat(data):
 
 @socketio.on("finger-misplaced")
 def on_finger_misplaced(data):
-    print("finger misplaced: ", data["deviceId"])
+    print("finger misplaced from: ", data["deviceId"], ", ", data["fingerMisplaced"])
     socketio.emit("finger-misplaced", data)
 
 

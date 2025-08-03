@@ -1,10 +1,11 @@
 const socket = io();
-const connectScreen = document.getElementById('connect-screen');
+const homeScreen = document.getElementById('home');
 const videoInterface = document.getElementById('video-interface');
-// const connectBtn = document.getElementById('connect-btn');
 const connectingScreen = document.getElementById('connecting-screen');
 const videoContainer = document.getElementById('video-container');
 const remoteVideo = document.getElementById('remote-video');
+const fakeVideoContainer = document.getElementById('fake-video-container');
+const fakeVideo = document.getElementById('fake-video');
 const fingerMisplaced = document.getElementById('finger-misplaced');
 
 // constants
@@ -12,7 +13,7 @@ const params = new URLSearchParams(document.location.search);
 const DEVICE_ID = parseInt(params.get("deviceid"), 10);
 const room = 'video-room';
 const searchDuration = 20;
-const sessionDuration = 193;
+const sessionDuration = 100;
 const espDuration = 43;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
@@ -23,7 +24,8 @@ const videoFiles = [
 
 // variables
 let audioPlayer = null;
-let isConnected = false;
+let isStarted = false;
+let isOtherConnected = false;
 let isExperience = false;
 let localStream;
 let peerConnection;
@@ -36,24 +38,6 @@ const config = {
   ],
 };
 
-// window.addEventListener('DOMContentLoaded', async () => {
-//   console.log('joining...');
-//   socket.emit('join', { room: room });
-// });
-
-// connectBtn.addEventListener('click', async () => {
-//   connectBtn.disabled = true;
-//   connectBtn.style.opacity = '0.7';
-
-//   connectScreen.style.display = 'none';
-//   videoInterface.style.display = 'block';
-
-//   console.log('joining...');
-//   socket.emit('join', { room: room });
-
-//   await startAudio(connectingAudioFile);
-//   await startSearchTimeout();
-// });
 
 async function startAudio(audio) {
   if (audioPlayer) {
@@ -84,15 +68,13 @@ async function startAudio(audio) {
 async function startSearchTimeout() {
   console.log(`⏰ Starting search timeout: ${searchDuration} seconds`);
   setTimeout(() => {
-    console.log(`⏰ Search timeout reached. isConnected: ${isConnected}`);
-    if (isConnected) {
-      console.log('startExperience');
+    console.log(`⏰ Search timeout reached. is other connected? ${isOtherConnected}`);
+    if (isOtherConnected) {
+      console.log('📞 Start Experience');
       startExperience();
     }
     else {
-      console.log('leaving room..');
-      socket.emit('leave', { room: room });
-      console.log('start fake Experience');
+      console.log('📞🥸 Start fake Experience');
       startFakeExperience();
     }
   }, searchDuration * 1000);
@@ -114,23 +96,24 @@ function startFakeExperience() {
   const selectedVideo = videoFiles[videoIndex];
   console.log('📺 Using video:', selectedVideo, 'Index:', videoIndex);
 
-  remoteVideo.srcObject = null;
-  remoteVideo.src = selectedVideo;
-  remoteVideo.autoplay = true;
-  remoteVideo.loop = true;
-  remoteVideo.muted = true;
+  fakeVideo.srcObject = null;
+  fakeVideo.src = selectedVideo;
+  fakeVideo.autoplay = true;
+  fakeVideo.loop = true;
+  fakeVideo.muted = true;
 
-  remoteVideo.onloadeddata = function () {
+  fakeVideo.onloadeddata = function () {
     console.log('✅ Video loaded successfully');
     connectingScreen.style.display = 'none';
-    videoContainer.style.display = 'block';
+    fakeVideoContainer.style.display = 'block';
     isExperience = true;
+    socket.emit('experience-started', { deviceId: DEVICE_ID });
     startAudio(sessionAudioFile);
     startSessionTimer();
     startFakeEspTimmer();
   };
 
-  remoteVideo.onerror = function (error) {
+  fakeVideo.onerror = function (error) {
     console.log('❌ Video failed to load:', error);
   };
 }
@@ -148,8 +131,6 @@ function startFakeEspTimmer() {
   setTimeout(() => {
     console.log(`⏰ Esp fake timeout reached.`);
     sendFakeBeat();
-    socket.emit('beat', { deviceId: other_device });
-
   }, espDuration * 1000);
 }
 
@@ -172,21 +153,6 @@ function startSessionTimer() {
 
 function endSession() {
   console.log(`End session.`);
-  if (localStream) {
-    localStream.getTracks().forEach(track => track.stop());
-  }
-
-  if (peerConnection) {
-    peerConnection.close();
-  }
-
-  remoteVideo.srcObject = null;
-  remoteVideo.src = '';
-  remoteVideo.pause();
-  remoteVideo.currentTime = 0;
-  remoteVideo.onloadeddata = null;
-  remoteVideo.onerror = null;
-
 
   if (audioPlayer) {
     audioPlayer.pause();
@@ -194,22 +160,20 @@ function endSession() {
     audioPlayer = null;
   }
 
-  socket.emit('stop-beat', { deviceId: DEVICE_ID });
-  socket.emit('leave', { room: room });
+  socket.emit('stop', { deviceId: DEVICE_ID });
 
   setTimeout(() => {
     videoInterface.style.display = 'none';
-    connectScreen.style.display = 'flex';
-    connectBtn.disabled = false;
-    connectBtn.style.opacity = '1';
-
-    isConnected = false;
-    isExperience = false;
-    localStream = null;
-    peerConnection = null;
-
+    homeScreen.style.display = 'flex';
+    fingerMisplaced.style.display = 'none';
     connectingScreen.style.display = 'flex';
     videoContainer.style.display = 'none';
+    fakeVideoContainer.style.display = 'none';
+
+    isStarted = false;
+    isExperience = false;
+    isOtherConnected = false;
+
   }, 500);
 }
 
@@ -221,13 +185,29 @@ socket.on('connect', () => {
   socket.emit('join', { room: room });
 });
 
+socket.on('stop', (data) => {
+  console.log(`stop from: ${data.deviceId}`);
+});
+
+socket.on('experience-started', (data) => {
+  console.log(`Fake experience started from: ${data.deviceId}`);
+  if (data.deviceId !== DEVICE_ID) {
+    isOtherConnected = false;
+  }
+});
+
 socket.on('start', async (data) => {
-  if (data.deviceId !== DEVICE_ID) return;
-  console.log('start');
-  connectScreen.style.display = 'none';
-  videoInterface.style.display = 'block';
-  await startAudio(connectingAudioFile);
-  await startSearchTimeout();
+  if (data.deviceId !== DEVICE_ID) {
+    isOtherConnected = !isExperience;
+  }
+  else {
+    console.log('start');
+    isStarted = true;
+    homeScreen.style.display = 'none';
+    videoInterface.style.display = 'block';
+    await startAudio(connectingAudioFile);
+    await startSearchTimeout();
+  }
 });
 
 socket.on('finger-misplaced', (data) => {
@@ -245,7 +225,6 @@ socket.on('peer_joined', (data) => {
   console.log('A new peer has joined the room.');
   // When a new peer joins, the existing peer will create and send an offer
   createPeerConnection();
-  isConnected = true;
 
   navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     .then(stream => {
@@ -278,7 +257,6 @@ socket.on('signal', (data) => {
   if (data.desc) {
     if (data.desc.type === 'offer' && !peerConnection) {
       createPeerConnection();
-      isConnected = true;
       navigator.mediaDevices.getUserMedia({ video: true, audio: false })
         .then(stream => {
           localStream = stream;

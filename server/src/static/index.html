@@ -12,9 +12,9 @@
 <body>
   <div class="container">
     <!-- Initial Connect Screen -->
-    <div id="connect-screen" class="connect-screen">
+    <div id="home" class="connecting-message">
       <h1 class="artwork-title">Being, Between</h1>
-      <!-- <button id="connect-btn" class="connect-btn">Click here to connect</button> -->
+      <p>Place your finger on the sensor</p>
     </div>
 
     <!-- Video Interface -->
@@ -24,6 +24,7 @@
         <div class="connecting-message">
           <h2>Connecting...</h2>
           <p>Looking for someone</p>
+          <p>Please wear the headphones</p>
           <div class="loading"></div>
         </div>
       </div>
@@ -32,7 +33,12 @@
       <div id="video-container" class="video-container">
         <video id="remote-video" autoplay></video>
       </div>
+
+      <div id="fake-video-container" class="video-container">
+        <video id="fake-video" autoplay></video>
+      </div>
     </div>
+    
     <h2 id="finger-misplaced" class="finger-misplaced">Please keep your finger on the device</h2>
   </div>
 

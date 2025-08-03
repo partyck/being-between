@@ -21,8 +21,9 @@
   }
 
   /* Initial Connect Screen */
-  .connect-screen {
+  .home {
     text-align: center;
+    color: white;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -33,7 +34,6 @@
 
   .artwork-title {
     font-size: 4em;
-    color: white;
     font-weight: 100;
     letter-spacing: 8px;
     text-transform: uppercase;
