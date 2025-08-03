@@ -56,6 +56,12 @@ def on_signal(data):
 # --- Esp32 sockets ---
 
 
+@socketio.on("start")
+def on_start(data):
+    print("start ", data["deviceId"])
+    socketio.emit("start", data)
+
+
 @socketio.on("start-beat")
 def on_start_beat(data):
     print("Start beat from:", data["deviceId"])
@@ -72,6 +78,12 @@ def on_stop_beat(data):
 def on_beat(data):
     print("Beat from:", data["deviceId"])
     socketio.emit("motor", data)
+
+
+@socketio.on("finger-misplaced")
+def on_finger_misplaced(data):
+    print("finger misplaced: ", data["deviceId"])
+    socketio.emit("finger-misplaced", data)
 
 
 # --- Default Route to Serve index.html ---

@@ -34,17 +34,70 @@ int beatAvg = 0;
 long lastBeat = 0;
 float temperature;
 bool isStarted = false;
+bool sentStart = false;
+bool fingerMisplaced = false;
 
 void sendBeat() {
+  if (!socketIO.isConnected()) {
+    Serial.println("WebSocket is not connected. Trying to reconnect...");
+    return;
+  }
   Serial.println("Sending beat....");
-  if (socketIO.isConnected()) {
+  JsonDocument doc;
+  JsonArray array = doc.to<JsonArray>();
+  array.add("beat");
+  JsonObject payload = array.add<JsonObject>();
+  payload["beatsPerMinute"] = beatsPerMinute;
+  payload["beatAvg"] = beatAvg;
+  payload["deviceId"] = DEVICE_ID;
+  String output;
+  serializeJson(doc, output);
+  
+  bool send1 = socketIO.sendEVENT(output);
+  Serial.print("Sent event: ");
+  Serial.print(output);
+  Serial.print(" responses: ");
+  Serial.println(send1);
+}
+
+void sendStart() {
+  if (!socketIO.isConnected()) {
+    Serial.println("WebSocket is not connected. Trying to reconnect...");
+    return;
+  }
+  if (!sentStart) {
+    Serial.println("Sending Start....");
     JsonDocument doc;
     JsonArray array = doc.to<JsonArray>();
-    array.add("beat");
+    array.add("start");
     JsonObject payload = array.add<JsonObject>();
-    payload["beatsPerMinute"] = beatsPerMinute;
-    payload["beatAvg"] = beatAvg;
     payload["deviceId"] = DEVICE_ID;
+    String output;
+    serializeJson(doc, output);
+    
+    bool send1 = socketIO.sendEVENT(output);
+    sentStart = true;
+    Serial.print("Sent event: ");
+    Serial.print(output);
+    Serial.print(" responses: ");
+    Serial.println(send1);
+  }
+}
+
+void sendFingerPlacement(bool changed) {
+  if (!socketIO.isConnected()) {
+    Serial.println("WebSocket is not connected. Trying to reconnect...");
+    return;
+  }
+  if (sentStart && changed != fingerMisplaced) {
+    Serial.println("Sending finger misplaced....");
+    fingerMisplaced = changed;
+    JsonDocument doc;
+    JsonArray array = doc.to<JsonArray>();
+    array.add("finger-misplaced");
+    JsonObject payload = array.add<JsonObject>();
+    payload["deviceId"] = DEVICE_ID;
+    payload["fingerMisplaced"] = fingerMisplaced;
     String output;
     serializeJson(doc, output);
     
@@ -53,11 +106,9 @@ void sendBeat() {
     Serial.print(output);
     Serial.print(" responses: ");
     Serial.println(send1);
-  } else {
-    Serial.println("WebSocket is not connected. Trying to reconnect...");
   }
 }
-  
+
 void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length) {
   switch(type) {
       case sIOtype_DISCONNECT:
@@ -184,6 +235,8 @@ void setup() {
 
     //If a finger is detected
     if (irValue > 50000) {
+      sendStart();
+      sendFingerPlacement(false);
       if (checkForBeat(irValue) == true) {
         Serial.print("beat detected. ");
 
@@ -222,6 +275,8 @@ void setup() {
       }
     }
     else {
+      sendFingerPlacement(true);
+      //  sentStart = false;
       // Serial.println("Place your index finger on the sensor with steady pressure.");
     }
  }

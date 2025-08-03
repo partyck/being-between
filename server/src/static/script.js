@@ -1,13 +1,14 @@
 const socket = io();
 const connectScreen = document.getElementById('connect-screen');
 const videoInterface = document.getElementById('video-interface');
-const connectBtn = document.getElementById('connect-btn');
+// const connectBtn = document.getElementById('connect-btn');
 const connectingScreen = document.getElementById('connecting-screen');
 const videoContainer = document.getElementById('video-container');
 const remoteVideo = document.getElementById('remote-video');
+const fingerMisplaced = document.getElementById('finger-misplaced');
 
 // constants
-let params = new URLSearchParams(document.location.search);
+const params = new URLSearchParams(document.location.search);
 const DEVICE_ID = parseInt(params.get("deviceid"), 10);
 const room = 'video-room';
 const searchDuration = 20;
@@ -35,20 +36,24 @@ const config = {
   ],
 };
 
+// window.addEventListener('DOMContentLoaded', async () => {
+//   console.log('joining...');
+//   socket.emit('join', { room: room });
+// });
 
-connectBtn.addEventListener('click', async () => {
-  connectBtn.disabled = true;
-  connectBtn.style.opacity = '0.7';
+// connectBtn.addEventListener('click', async () => {
+//   connectBtn.disabled = true;
+//   connectBtn.style.opacity = '0.7';
 
-  connectScreen.style.display = 'none';
-  videoInterface.style.display = 'block';
+//   connectScreen.style.display = 'none';
+//   videoInterface.style.display = 'block';
 
-  console.log('joining...');
-  socket.emit('join', { room: room });
+//   console.log('joining...');
+//   socket.emit('join', { room: room });
 
-  await startAudio(connectingAudioFile);
-  await startSearchTimeout();
-});
+//   await startAudio(connectingAudioFile);
+//   await startSearchTimeout();
+// });
 
 async function startAudio(audio) {
   if (audioPlayer) {
@@ -213,6 +218,27 @@ function endSession() {
 // --- Socket.IO Signaling ---
 socket.on('connect', () => {
   console.log('socket connected');
+  socket.emit('join', { room: room });
+});
+
+socket.on('start', async (data) => {
+  if (data.deviceId !== DEVICE_ID) return;
+  console.log('start');
+  connectScreen.style.display = 'none';
+  videoInterface.style.display = 'block';
+  await startAudio(connectingAudioFile);
+  await startSearchTimeout();
+});
+
+socket.on('finger-misplaced', (data) => {
+  if (data.deviceId !== DEVICE_ID) return;
+  console.log(`👆 finger-misplaced: ${data.fingerMisplaced}`);
+  if (data.fingerMisplaced) {
+    fingerMisplaced.style.display = 'block';
+  }
+  else {
+    fingerMisplaced.style.display = 'none';
+  }
 });
 
 socket.on('peer_joined', (data) => {
