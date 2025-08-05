@@ -92,7 +92,7 @@ function startExperience() {
 
 function startFakeExperience() {
   console.log('started fake experience');
-  let videoIndex = Math.floor(Math.random() * videoFiles.length);
+  const videoIndex = Math.floor(Math.random() * videoFiles.length);
   const selectedVideo = videoFiles[videoIndex];
   console.log('📺 Using video:', selectedVideo, 'Index:', videoIndex);
 
@@ -134,10 +134,10 @@ function startFakeEspTimmer() {
   }, espDuration * 1000);
 }
 
-let sendFakeBeat = () => {
+const sendFakeBeat = () => {
   if (isExperience) {
     console.log(`❤️ beat!`);
-    let other_device = DEVICE_ID == 1 ? 2 : 1;
+    const other_device = DEVICE_ID == 1 ? 2 : 1;
     socket.emit('beat', { deviceId: other_device })
     setTimeout(() => sendFakeBeat(), 1000);
   }
@@ -193,15 +193,25 @@ socket.on('experience-started', (data) => {
   console.log(`Fake experience started from: ${data.deviceId}`);
   if (data.deviceId !== DEVICE_ID) {
     isOtherConnected = false;
+
+    homeScreen.style.display = 'flex';
+    connectingScreen.style.display = 'flex';
+    fingerMisplaced.style.display = 'none';
+    videoInterface.style.display = 'none';
+    videoContainer.style.display = 'none';
+    fakeVideoContainer.style.display = 'none';
   }
 });
 
 socket.on('start', async (data) => {
+  console.log(`start ${data.deviceId}`);
   if (data.deviceId !== DEVICE_ID) {
     isOtherConnected = !isExperience;
+    connectingScreen.style.display = 'none';
+    videoContainer.style.display = 'block';
+    videoInterface.style.display = 'block';
   }
   else {
-    console.log('start');
     isStarted = true;
     homeScreen.style.display = 'none';
     videoInterface.style.display = 'block';
