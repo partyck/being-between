@@ -13,3 +13,4 @@ config.toml
 *.pem
 tmp/
 */tmp/
+server/src/static/videos
