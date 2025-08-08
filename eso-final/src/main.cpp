@@ -30,6 +30,26 @@ bool isStarted = false;
 bool sentStart = false;
 bool fingerMisplaced = false;
 
+void sendJoined() {
+  if (!socketIO.isConnected()) {
+    Serial.println("WebSocket is not connected. Trying to reconnect...");
+    return;
+  }
+  Serial.println("Sending joined....");
+  JsonDocument doc;
+  JsonArray array = doc.to<JsonArray>();
+  array.add("esp-joined");
+  JsonObject payload = array.add<JsonObject>();
+  payload["deviceId"] = DEVICE_ID;
+  String output;
+  serializeJson(doc, output);
+  
+  bool send1 = socketIO.sendEVENT(output);
+  Serial.print("Sent event: ");
+  Serial.print(output);
+  Serial.print(" responses: ");
+  Serial.println(send1);
+}
 void sendBeat() {
   if (!socketIO.isConnected()) {
     Serial.println("WebSocket is not connected. Trying to reconnect...");
@@ -108,6 +128,7 @@ void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length)
       case sIOtype_CONNECT:
           Serial.printf("[IOc] Connected to url: %s\n", payload);
           socketIO.send(sIOtype_CONNECT, "/");
+          sendJoined();
           break;
       case sIOtype_EVENT:
       {

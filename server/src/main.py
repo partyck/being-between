@@ -56,6 +56,12 @@ def on_signal(data):
 # --- Esp32 sockets ---
 
 
+@socketio.on("esp-joined")
+def on_esp_joined(data):
+    print("esp-joined ", data["deviceId"])
+    socketio.emit("esp-joined", data)
+
+
 @socketio.on("start")
 def on_start(data):
     print("start ", data["deviceId"])

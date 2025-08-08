@@ -17,9 +17,12 @@ const sessionDuration = 100;
 const espDuration = 43;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
-const videoFiles = [
-  'fake-video-1.mp4',
-  'fake-video-2.mp4',
+const fakeVideos1 = [
+  'videos/fake-video-1.mp4',
+  'videos/fake-video-2.mp4',
+];
+const fakeVideos2 = [
+  'videos/fake-video-3.mp4',
 ];
 
 // variables
@@ -52,7 +55,7 @@ async function startAudio(audio) {
     audioPlayer.volume = 0.6;
 
     audioPlayer.onended = () => {
-      console.log('✅ Audio finished naturally');
+      // console.log('✅ Audio finished naturally');
       audioPlayer = null;
     };
 
@@ -92,8 +95,9 @@ function startExperience() {
 
 function startFakeExperience() {
   console.log('started fake experience');
-  const videoIndex = Math.floor(Math.random() * videoFiles.length);
-  const selectedVideo = videoFiles[videoIndex];
+  const videos = DEVICE_ID === 1 ? fakeVideos1 : fakeVideos2;
+  const videoIndex = Math.floor(Math.random() * videos.length);
+  const selectedVideo = videos[videoIndex];
   console.log('📺 Using video:', selectedVideo, 'Index:', videoIndex);
 
   fakeVideo.srcObject = null;
@@ -137,7 +141,7 @@ function startFakeEspTimmer() {
 const sendFakeBeat = () => {
   if (isExperience) {
     console.log(`❤️ beat!`);
-    const other_device = DEVICE_ID == 1 ? 2 : 1;
+    const other_device = DEVICE_ID === 1 ? 2 : 1;
     socket.emit('beat', { deviceId: other_device })
     setTimeout(() => sendFakeBeat(), 1000);
   }
@@ -185,13 +189,17 @@ socket.on('connect', () => {
   socket.emit('join', { room: room });
 });
 
+socket.on('esp-joined', (data) => {
+  console.log(`esp joined: ${data.deviceId}`);
+});
+
 socket.on('stop', (data) => {
   console.log(`stop from: ${data.deviceId}`);
 });
 
 socket.on('experience-started', (data) => {
   console.log(`Fake experience started from: ${data.deviceId}`);
-  if (data.deviceId !== DEVICE_ID) {
+  if (!isExperience && data.deviceId !== DEVICE_ID) {
     isOtherConnected = false;
 
     homeScreen.style.display = 'flex';
