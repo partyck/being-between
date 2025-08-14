@@ -13,8 +13,9 @@ const params = new URLSearchParams(document.location.search);
 const DEVICE_ID = parseInt(params.get("deviceid"), 10);
 const room = 'video-room';
 const searchDuration = 20;
-const sessionDuration = 100;
+const sessionDuration = 93;
 const espDuration = 43;
+const breakDuration = 5;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
 const fakeVideos1 = [
@@ -29,17 +30,16 @@ const Status = Object.freeze({
   STAND_BY: 'STAND_BY',
   WAITING_FOR_OTHER: 'WAITING_FOR_OTHER',
   WAITING_FOR_USER: 'WAITING_FOR_USER',
+  WAITING_TO_START: 'WAITING_TO_START',
   EXPERIENCE: 'EXPERIENCE',
   EXPERIENCE_BEAT: 'EXPERIENCE_BEAT',
+  BREAK: 'BREAK',
 });
 let currentStatus = Status.STAND_BY;
 
 // variables
 let audioPlayer = null;
-let isStarted = false;
 let isOtherConnected = false;
-let isExperience = false;
-let isBeatOn = false;
 let localStream;
 let peerConnection;
 let iceCandidateQueue = [];
@@ -65,7 +65,6 @@ async function startAudio(audio) {
     audioPlayer.volume = 0.6;
 
     audioPlayer.onended = () => {
-      // console.log('✅ Audio finished naturally');
       audioPlayer = null;
     };
 
@@ -82,29 +81,31 @@ async function startSearchTimeout() {
   console.log(`⏰ Starting search timeout: ${searchDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Search timeout reached. is other connected? ${isOtherConnected}`);
+
+    socket.emit('start-experience', { deviceId: DEVICE_ID });
+    videoInterface.style.display = 'block';
+    currentStatus = Status.EXPERIENCE;
+
     if (isOtherConnected) {
-      console.log('📞 Start Experience');
       startExperience();
     }
     else {
-      console.log('📞🥸 Start fake Experience');
       startFakeExperience();
     }
   }, searchDuration * 1000);
 }
 
 function startExperience() {
-  console.log('started experience');
+  console.log('📞 Start Experience');
   startAudio(sessionAudioFile);
   connectingScreen.style.display = 'none';
   videoContainer.style.display = 'block';
-  isExperience = true;
   startSessionTimer();
-  startEspTimmer();
+  startFakeEspTimmer();
 }
 
 function startFakeExperience() {
-  console.log('started fake experience');
+  console.log('📞🥸 Start fake Experience');
   const videos = DEVICE_ID === 1 ? fakeVideos1 : fakeVideos2;
   const videoIndex = Math.floor(Math.random() * videos.length);
   const selectedVideo = videos[videoIndex];
@@ -120,8 +121,6 @@ function startFakeExperience() {
     console.log('✅ Video loaded successfully');
     connectingScreen.style.display = 'none';
     fakeVideoContainer.style.display = 'block';
-    isExperience = true;
-    socket.emit('experience-started', { deviceId: DEVICE_ID });
     startAudio(sessionAudioFile);
     startSessionTimer();
     startFakeEspTimmer();
@@ -132,29 +131,19 @@ function startFakeExperience() {
   };
 }
 
-function startEspTimmer() {
-  console.log(`⏰ Starting esp timeout: ${espDuration} seconds`);
-  setTimeout(() => {
-    console.log(`⏰ Esp timeout reached.`);
-    socket.emit('start-beat', { deviceId: DEVICE_ID });
-    isBeatOn = true;
-  }, espDuration * 1000);
-}
-
 function startFakeEspTimmer() {
   console.log(`⏰ Starting esp fake timeout: ${espDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Esp fake timeout reached.`);
-    isBeatOn = true;
+    currentStatus = Status.EXPERIENCE_BEAT;
     sendFakeBeat();
   }, espDuration * 1000);
 }
 
 const sendFakeBeat = () => {
-  if (isExperience) {
+  if (currentStatus === Status.EXPERIENCE_BEAT) {
     console.log(`❤️ beat!`);
-    // const other_device = DEVICE_ID === 1 ? 2 : 1;
-    socket.emit('beat', { deviceId: DEVICE_ID });
+    socket.emit('motor', { deviceId: DEVICE_ID });
     setTimeout(() => sendFakeBeat(), 1000);
   }
 };
@@ -176,24 +165,28 @@ function endSession() {
     audioPlayer = null;
   }
 
-  // socket.emit('stop', { deviceId: DEVICE_ID });
-
   setTimeout(() => {
     videoInterface.style.display = 'none';
     homeScreen.style.display = 'flex';
     fingerMisplaced.style.display = 'none';
-    connectingScreen.style.display = 'flex';
+    connectingScreen.style.display = 'none';
     videoContainer.style.display = 'none';
     fakeVideoContainer.style.display = 'none';
 
-    isStarted = false;
-    isExperience = false;
     isOtherConnected = false;
-    isBeatOn = false;
+    currentStatus = Status.BREAK;
+    breakTimer();
 
   }, 500);
 }
 
+function breakTimer() {
+  console.log(`⏰ break timeout: ${breakDuration} seconds`);
+  setTimeout(() => {
+    console.log(`⏰ break reached.`);
+    currentStatus = Status.STAND_BY;
+  }, breakDuration * 1000);
+}
 
 
 // --- Socket.IO Signaling ---
@@ -208,76 +201,79 @@ socket.on('esp-joined', (data) => {
 
 socket.on('beat', (data) => {
   console.log(`beat from: ${data.deviceId}`);
-  if (data.deviceId !== DEVICE_ID) {
-    if (isBeatOn) {
-      const other_device = DEVICE_ID === 1 ? 2 : 1;
-      socket.emit('motor', { deviceId: other_device });
-    }
-  }
 });
 
-socket.on('experience-started', (data) => {
-  console.log(`Fake experience started from: ${data.deviceId}`);
-  if (!isExperience && data.deviceId !== DEVICE_ID) {
-    isOtherConnected = false;
-
+socket.on('waiting', (data) => {
+  if (data.deviceId !== DEVICE_ID && currentStatus == Status.STAND_BY) {
+    console.log(`Waiting coming from ${data.deviceId}`);
+    currentStatus = Status.WAITING_FOR_USER;
     homeScreen.style.display = 'flex';
-    connectingScreen.style.display = 'flex';
-    fingerMisplaced.style.display = 'none';
-    videoInterface.style.display = 'none';
-    videoContainer.style.display = 'none';
-    fakeVideoContainer.style.display = 'none';
-  }
-});
-
-socket.on('start', async (data) => {
-  console.log(`start ${data.deviceId}`);
-  if (data.deviceId !== DEVICE_ID) {
-    isOtherConnected = !isExperience;
     connectingScreen.style.display = 'none';
     videoContainer.style.display = 'block';
     videoInterface.style.display = 'block';
   }
-  else {
-    isStarted = true;
-    homeScreen.style.display = 'none';
-    videoInterface.style.display = 'block';
-    await startAudio(connectingAudioFile);
-    await startSearchTimeout();
+});
+
+socket.on('other-connected', (data) => {
+  if (data.deviceId !== DEVICE_ID && currentStatus == Status.WAITING_FOR_OTHER) {
+    console.log(`other connected from: ${data.deviceId}`);
+    isOtherConnected = true;
   }
 });
 
-socket.on('finger-misplaced', async (data) => {
-  console.log(`👆 finger-misplaced: ${data.fingerMisplaced}`);
-  if (data.deviceId === DEVICE_ID && data.fingerMisplaced) {
-    switch (currentStatus) {
-      case Status.STAND_BY:
-        isStarted = true;
-        homeScreen.style.display = 'none';
-        videoInterface.style.display = 'block';
-        await startAudio(connectingAudioFile);
-        await startSearchTimeout();
-        break;
-      case Status.WAITING_FOR_USER:
-        // Add logic for WAITING_FOR_USER if needed
-        break;
-      default:
-        // Handle unknown status if necessary
-        break;
+socket.on('start-experience', (data) => {
+  if (data.deviceId !== DEVICE_ID) {
+    if (currentStatus === Status.WAITING_TO_START) {
+      console.log(`start experience from: ${data.deviceId}`);
+      homeScreen.style.display = 'none';
+      videoInterface.style.display = 'block';
+      startExperience();
     }
-    if (currentStatus === Status.STAND_BY) {
-
-    }
-    if (currentStatus == Status.WAITING_FOR_USER) {
-
+    if (currentStatus === Status.WAITING_FOR_USER) {
+      isOtherConnected = false;
+      currentStatus = Status.STAND_BY;
+      homeScreen.style.display = 'flex';
+      connectingScreen.style.display = 'none';
+      fingerMisplaced.style.display = 'none';
+      videoInterface.style.display = 'none';
+      videoContainer.style.display = 'none';
+      fakeVideoContainer.style.display = 'none';
     }
   }
+});
 
-  if (data.fingerMisplaced) {
-    fingerMisplaced.style.display = 'block';
-  }
-  else {
-    fingerMisplaced.style.display = 'none';
+socket.on('finger', async (data) => {
+  console.log(`👆 finger-misplaced: ${data.fingerDerected}`);
+  if (data.deviceId === DEVICE_ID) {
+    if (data.fingerDerected) {
+
+      switch (currentStatus) {
+        case Status.STAND_BY:
+          currentStatus = Status.WAITING_FOR_OTHER;
+          homeScreen.style.display = 'none';
+          connectingScreen.style.display = 'flex';
+          socket.emit('waiting', { deviceId: DEVICE_ID });
+          await startAudio(connectingAudioFile);
+          await startSearchTimeout();
+          break;
+        case Status.WAITING_FOR_USER:
+          console.log('📞 Start Experience');
+          currentStatus = Status.WAITING_TO_START;
+          homeScreen.style.display = 'none';
+          videoInterface.style.display = 'block';
+          connectingScreen.style.display = 'flex';
+          socket.emit('other-connected', { deviceId: DEVICE_ID });
+          break;
+        default:
+          fingerMisplaced.style.display = 'none';
+          break;
+      }
+    }
+    else {
+      if ([Status.WAITING_TO_START, Status.WAITING_FOR_OTHER, Status.EXPERIENCE, Status.EXPERIENCE_BEAT].includes(currentStatus)) {
+        fingerMisplaced.style.display = 'block';
+      }
+    }
   }
 });
 

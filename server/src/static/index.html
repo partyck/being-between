@@ -14,20 +14,24 @@
     <!-- Initial Connect Screen -->
     <div id="home" class="home">
       <h1 class="artwork-title">Being, Between</h1>
-      <p>Place your finger on the sensor</p>
+      <p>Place your finger on the sensor and put on the headphones</p>
     </div>
+
+    <!-- Connecting Screen -->
+    <div id="connecting-screen" class="connecting-screen">
+      <div class="connecting-message">
+        <h2>Connecting...</h2>
+        <p>Looking for someone</p>
+        <p>Please wear the headphones</p>
+        <div class="loading"></div>
+      </div>
+    </div>
+    
+    <!-- Finger warning -->
+    <h2 id="finger-misplaced" class="finger-misplaced">Please keep your finger on the device</h2>
 
     <!-- Video Interface -->
     <div id="video-interface" class="video-interface">
-      <!-- Connecting Screen -->
-      <div id="connecting-screen" class="connecting-screen">
-        <div class="connecting-message">
-          <h2>Connecting...</h2>
-          <p>Looking for someone</p>
-          <p>Please wear the headphones</p>
-          <div class="loading"></div>
-        </div>
-      </div>
 
       <!-- Video Container (hidden initially) -->
       <div id="video-container" class="video-container">
@@ -38,8 +42,6 @@
         <video id="fake-video" autoplay></video>
       </div>
     </div>
-
-    <h2 id="finger-misplaced" class="finger-misplaced">Please keep your finger on the device</h2>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>

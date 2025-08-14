@@ -26,6 +26,24 @@ def on_disconnect():
     print(f"client disconnected {sid}")
 
 
+@socketio.on("start-experience")
+def on_start_experience(data):
+    print("start experience from:", data["deviceId"])
+    socketio.emit("start-experience", data)
+
+
+@socketio.on("other-connected")
+def on_other_connected(data):
+    print("other connected from:", data["deviceId"])
+    socketio.emit("other-connected", data)
+
+
+@socketio.on("waiting")
+def on_waiting(data):
+    print("waiting from:", data["deviceId"])
+    socketio.emit("waiting", data)
+
+
 # --- WebRTC Signaling Handlers (Targeted) ---
 
 
@@ -62,30 +80,6 @@ def on_esp_joined(data):
     socketio.emit("esp-joined", data)
 
 
-# @socketio.on("start")
-# def on_start(data):
-#     print("start ", data["deviceId"])
-#     socketio.emit("start", data)
-
-
-@socketio.on("experience-started")
-def on_experience_started(data):
-    print("experience-started ", data["deviceId"])
-    socketio.emit("experience-started", data)
-
-
-# @socketio.on("start-beat")
-# def on_start_beat(data):
-#     print("Start beat from:", data["deviceId"])
-#     socketio.emit("start-beat", data)
-
-
-# @socketio.on("stop")
-# def on_stop(data):
-#     print("Stop from:", data["deviceId"])
-#     socketio.emit("stop", data)
-
-
 @socketio.on("beat")
 def on_beat(data):
     print("Beat from:", data["deviceId"])
@@ -98,10 +92,10 @@ def on_motor(data):
     socketio.emit("motor", data)
 
 
-@socketio.on("finger-misplaced")
+@socketio.on("finger")
 def on_finger_misplaced(data):
-    print("finger misplaced from: ", data["deviceId"], ", ", data["fingerMisplaced"])
-    socketio.emit("finger-misplaced", data)
+    print("finger from: ", data["deviceId"], ", ", data["fingerDerected"])
+    socketio.emit("finger", data)
 
 
 # --- Default Route to Serve index.html ---
