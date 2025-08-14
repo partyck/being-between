@@ -26,9 +26,7 @@ SocketIOclient socketIO;
 Adafruit_DRV2605 drv;
 MAX30105 particleSensor;
 
-bool isStarted = false;
-bool sentStart = false;
-bool fingerMisplaced = false;
+bool fingerDerected = false;
 
 void sendJoined() {
   if (!socketIO.isConnected()) {
@@ -71,44 +69,20 @@ void sendBeat() {
   Serial.println(send1);
 }
 
-void sendStart() {
+void sendDetected(bool changed) {
   if (!socketIO.isConnected()) {
     Serial.println("WebSocket is not connected. Trying to reconnect...");
     return;
   }
-  if (!sentStart) {
-    Serial.println("Sending Start....");
+  if (changed != fingerDerected) {
+    Serial.println("Sending derected....");
+    fingerDerected = changed;
     JsonDocument doc;
     JsonArray array = doc.to<JsonArray>();
-    array.add("start");
+    array.add("finger");
     JsonObject payload = array.add<JsonObject>();
     payload["deviceId"] = DEVICE_ID;
-    String output;
-    serializeJson(doc, output);
-    
-    bool send1 = socketIO.sendEVENT(output);
-    sentStart = true;
-    Serial.print("Sent event: ");
-    Serial.print(output);
-    Serial.print(" responses: ");
-    Serial.println(send1);
-  }
-}
-
-void sendFingerPlacement(bool changed) {
-  if (!socketIO.isConnected()) {
-    Serial.println("WebSocket is not connected. Trying to reconnect...");
-    return;
-  }
-  if (sentStart && changed != fingerMisplaced) {
-    Serial.println("Sending finger misplaced....");
-    fingerMisplaced = changed;
-    JsonDocument doc;
-    JsonArray array = doc.to<JsonArray>();
-    array.add("finger-misplaced");
-    JsonObject payload = array.add<JsonObject>();
-    payload["deviceId"] = DEVICE_ID;
-    payload["fingerMisplaced"] = fingerMisplaced;
+    payload["fingerDerected"] = fingerDerected;
     String output;
     serializeJson(doc, output);
     
@@ -132,44 +106,29 @@ void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length)
           break;
       case sIOtype_EVENT:
       {
-          char * sptr = NULL;
-          int id = strtol((char *)payload, &sptr, 10);
-          Serial.printf("[IOc] get event: %s id: %d length: %u\n", payload, id, length);
-          if(id) {
-              payload = (uint8_t *)sptr;
-          }
-          JsonDocument doc;
-          DeserializationError error = deserializeJson(doc, payload, length);
-          if(error) {
-              Serial.print(F("deserializeJson() failed: "));
-              Serial.println(error.c_str());
-              return;
-          }
+        char * sptr = NULL;
+        int id = strtol((char *)payload, &sptr, 10);
+        Serial.printf("[IOc] get event: %s id: %d length: %u\n", payload, id, length);
+        if(id) {
+            payload = (uint8_t *)sptr;
+        }
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, payload, length);
+        if(error) {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.c_str());
+            return;
+        }
 
-          String eventName = doc[0];
-          JsonObject data = doc[1]; 
-          int deviceId = data["deviceId"];
-          if (deviceId == DEVICE_ID) {
-            if (eventName == "motor") {
-              Serial.println("motor!");
-              drv.go();
-            }
-            // if (eventName == "start-beat") {
-            //   Serial.println("start-beat");
-            //   // isStarted = true;
-            // }
-            else if (eventName == "stop") {
-              Serial.println("this stop");
-              // isStarted = false;
-              // sentStart = false;
-              // fingerMisplaced = false;
-            }
+        String eventName = doc[0];
+        JsonObject data = doc[1]; 
+        int deviceId = data["deviceId"];
+        if (deviceId == DEVICE_ID) {
+          if (eventName == "motor") {
+            Serial.println("motor!");
+            drv.go();
           }
-          else {
-            if (eventName == "stop") {
-              Serial.println("other stop");
-            }
-          }
+        }
       }
           break;
       case sIOtype_ACK:
@@ -253,21 +212,16 @@ void setup() {
 
     //If a finger is detected
     if (irValue > 50000) {
-      sendStart();
-      sendFingerPlacement(false);
+      sendDetected(true);
       if (checkForBeat(irValue) == true) {
         Serial.print("beat detected. ");
         Serial.print("IR=");
         Serial.println(irValue);
         sendBeat();
-        
-        // if (isStarted) {
-        //   sendBeat();
-        // }
       }
     }
     else {
-      sendFingerPlacement(true);
+      sendDetected(false);
     }
  }
  
