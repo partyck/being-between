@@ -150,22 +150,22 @@ void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length)
           JsonObject data = doc[1]; 
           int deviceId = data["deviceId"];
           if (deviceId == DEVICE_ID) {
-            if (eventName == "start-beat") {
-              Serial.println("start-beat");
-              isStarted = true;
-            }
-            else if (eventName == "stop") {
-              Serial.println("this stop");
-              isStarted = false;
-              sentStart = false;
-              fingerMisplaced = false;
-            }
-          }
-          else {
             if (eventName == "motor") {
               Serial.println("motor!");
               drv.go();
             }
+            // if (eventName == "start-beat") {
+            //   Serial.println("start-beat");
+            //   // isStarted = true;
+            // }
+            else if (eventName == "stop") {
+              Serial.println("this stop");
+              // isStarted = false;
+              // sentStart = false;
+              // fingerMisplaced = false;
+            }
+          }
+          else {
             if (eventName == "stop") {
               Serial.println("other stop");
             }
@@ -259,9 +259,11 @@ void setup() {
         Serial.print("beat detected. ");
         Serial.print("IR=");
         Serial.println(irValue);
-        if (isStarted) {
-          sendBeat();
-        }
+        sendBeat();
+        
+        // if (isStarted) {
+        //   sendBeat();
+        // }
       }
     }
     else {

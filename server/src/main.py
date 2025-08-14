@@ -62,10 +62,10 @@ def on_esp_joined(data):
     socketio.emit("esp-joined", data)
 
 
-@socketio.on("start")
-def on_start(data):
-    print("start ", data["deviceId"])
-    socketio.emit("start", data)
+# @socketio.on("start")
+# def on_start(data):
+#     print("start ", data["deviceId"])
+#     socketio.emit("start", data)
 
 
 @socketio.on("experience-started")
@@ -74,21 +74,27 @@ def on_experience_started(data):
     socketio.emit("experience-started", data)
 
 
-@socketio.on("start-beat")
-def on_start_beat(data):
-    print("Start beat from:", data["deviceId"])
-    socketio.emit("start-beat", data)
+# @socketio.on("start-beat")
+# def on_start_beat(data):
+#     print("Start beat from:", data["deviceId"])
+#     socketio.emit("start-beat", data)
 
 
-@socketio.on("stop")
-def on_stop(data):
-    print("Stop from:", data["deviceId"])
-    socketio.emit("stop", data)
+# @socketio.on("stop")
+# def on_stop(data):
+#     print("Stop from:", data["deviceId"])
+#     socketio.emit("stop", data)
 
 
 @socketio.on("beat")
 def on_beat(data):
     print("Beat from:", data["deviceId"])
+    socketio.emit("beat", data)
+
+
+@socketio.on("motor")
+def on_motor(data):
+    print("Motor from:", data["deviceId"])
     socketio.emit("motor", data)
 
 

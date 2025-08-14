@@ -25,11 +25,21 @@ const fakeVideos2 = [
   'videos/fake-video-3.mp4',
 ];
 
+const Status = Object.freeze({
+  STAND_BY: 'STAND_BY',
+  WAITING_FOR_OTHER: 'WAITING_FOR_OTHER',
+  WAITING_FOR_USER: 'WAITING_FOR_USER',
+  EXPERIENCE: 'EXPERIENCE',
+  EXPERIENCE_BEAT: 'EXPERIENCE_BEAT',
+});
+let currentStatus = Status.STAND_BY;
+
 // variables
 let audioPlayer = null;
 let isStarted = false;
 let isOtherConnected = false;
 let isExperience = false;
+let isBeatOn = false;
 let localStream;
 let peerConnection;
 let iceCandidateQueue = [];
@@ -127,6 +137,7 @@ function startEspTimmer() {
   setTimeout(() => {
     console.log(`⏰ Esp timeout reached.`);
     socket.emit('start-beat', { deviceId: DEVICE_ID });
+    isBeatOn = true;
   }, espDuration * 1000);
 }
 
@@ -134,6 +145,7 @@ function startFakeEspTimmer() {
   console.log(`⏰ Starting esp fake timeout: ${espDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Esp fake timeout reached.`);
+    isBeatOn = true;
     sendFakeBeat();
   }, espDuration * 1000);
 }
@@ -141,8 +153,8 @@ function startFakeEspTimmer() {
 const sendFakeBeat = () => {
   if (isExperience) {
     console.log(`❤️ beat!`);
-    const other_device = DEVICE_ID === 1 ? 2 : 1;
-    socket.emit('beat', { deviceId: other_device })
+    // const other_device = DEVICE_ID === 1 ? 2 : 1;
+    socket.emit('beat', { deviceId: DEVICE_ID });
     setTimeout(() => sendFakeBeat(), 1000);
   }
 };
@@ -164,7 +176,7 @@ function endSession() {
     audioPlayer = null;
   }
 
-  socket.emit('stop', { deviceId: DEVICE_ID });
+  // socket.emit('stop', { deviceId: DEVICE_ID });
 
   setTimeout(() => {
     videoInterface.style.display = 'none';
@@ -177,6 +189,7 @@ function endSession() {
     isStarted = false;
     isExperience = false;
     isOtherConnected = false;
+    isBeatOn = false;
 
   }, 500);
 }
@@ -193,8 +206,14 @@ socket.on('esp-joined', (data) => {
   console.log(`esp joined: ${data.deviceId}`);
 });
 
-socket.on('stop', (data) => {
-  console.log(`stop from: ${data.deviceId}`);
+socket.on('beat', (data) => {
+  console.log(`beat from: ${data.deviceId}`);
+  if (data.deviceId !== DEVICE_ID) {
+    if (isBeatOn) {
+      const other_device = DEVICE_ID === 1 ? 2 : 1;
+      socket.emit('motor', { deviceId: other_device });
+    }
+  }
 });
 
 socket.on('experience-started', (data) => {
@@ -228,9 +247,32 @@ socket.on('start', async (data) => {
   }
 });
 
-socket.on('finger-misplaced', (data) => {
-  if (data.deviceId !== DEVICE_ID) return;
+socket.on('finger-misplaced', async (data) => {
   console.log(`👆 finger-misplaced: ${data.fingerMisplaced}`);
+  if (data.deviceId === DEVICE_ID && data.fingerMisplaced) {
+    switch (currentStatus) {
+      case Status.STAND_BY:
+        isStarted = true;
+        homeScreen.style.display = 'none';
+        videoInterface.style.display = 'block';
+        await startAudio(connectingAudioFile);
+        await startSearchTimeout();
+        break;
+      case Status.WAITING_FOR_USER:
+        // Add logic for WAITING_FOR_USER if needed
+        break;
+      default:
+        // Handle unknown status if necessary
+        break;
+    }
+    if (currentStatus === Status.STAND_BY) {
+
+    }
+    if (currentStatus == Status.WAITING_FOR_USER) {
+
+    }
+  }
+
   if (data.fingerMisplaced) {
     fingerMisplaced.style.display = 'block';
   }
