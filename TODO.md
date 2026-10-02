@@ -1,11 +1,12 @@
-- simplify the conection to the esp32. just an io board
+DONE - simplify the conection to the esp32. just an io board
 - check to make it online with gcp
-- add the privacy text. Since we’re excited about the possibility of presenting this work in a public space, we’re happy to add a sign near the installation stating that no information from participants is being recorded.
+- add the privacy text. 
+"Since we’re excited about the possibility of presenting this work in a public space, we’re happy to add a sign near the installation stating that no information from participants is being recorded."
 
 - make it look nicer:
     - transperent blurry camera feedback.
 
-- add the new vivbration:
+DONE - add the new vivbration:
     drv.selectLibrary(1);
   drv.setMode(DRV2605_MODE_INTTRIG);
 
