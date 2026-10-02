@@ -53,13 +53,8 @@ def on_signal(data):
     emit("signal", data, to=data["room"], skip_sid=request.sid)  # type: ignore
 
 
-# --- Esp32 sockets ---
-
-
-@socketio.on("esp-joined")
-def on_esp_joined(data):
-    print("esp-joined ", data["deviceId"])
-    socketio.emit("esp-joined", data)
+# --- Installation sockets ---
+# each web app reads its own esp32 over Web Serial and only shares these events with the other one.
 
 
 @socketio.on("start")
@@ -74,28 +69,10 @@ def on_experience_started(data):
     socketio.emit("experience-started", data)
 
 
-@socketio.on("start-beat")
-def on_start_beat(data):
-    print("Start beat from:", data["deviceId"])
-    socketio.emit("start-beat", data)
-
-
-@socketio.on("stop")
-def on_stop(data):
-    print("Stop from:", data["deviceId"])
-    socketio.emit("stop", data)
-
-
 @socketio.on("beat")
 def on_beat(data):
     print("Beat from:", data["deviceId"])
     socketio.emit("motor", data)
-
-
-@socketio.on("finger-misplaced")
-def on_finger_misplaced(data):
-    print("finger misplaced from: ", data["deviceId"], ", ", data["fingerMisplaced"])
-    socketio.emit("finger-misplaced", data)
 
 
 # --- Default Route to Serve index.html ---

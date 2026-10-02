@@ -7,6 +7,7 @@ const remoteVideo = document.getElementById('remote-video');
 const fakeVideoContainer = document.getElementById('fake-video-container');
 const fakeVideo = document.getElementById('fake-video');
 const fingerMisplaced = document.getElementById('finger-misplaced');
+const connectDeviceButton = document.getElementById('connect-device');
 
 // constants
 const params = new URLSearchParams(document.location.search);
@@ -30,6 +31,8 @@ let audioPlayer = null;
 let isStarted = false;
 let isOtherConnected = false;
 let isExperience = false;
+let isSendingBeats = false;
+let deviceWriter = null;
 let localStream;
 let peerConnection;
 let iceCandidateQueue = [];
@@ -66,6 +69,16 @@ async function startAudio(audio) {
   } catch (error) {
     console.error('❌ Error starting audio:', error);
   }
+}
+
+async function startSession() {
+  console.log('👆 finger placed, starting session');
+  isStarted = true;
+  socket.emit('start', { deviceId: DEVICE_ID });
+  homeScreen.style.display = 'none';
+  videoInterface.style.display = 'block';
+  await startAudio(connectingAudioFile);
+  await startSearchTimeout();
 }
 
 async function startSearchTimeout() {
@@ -126,7 +139,7 @@ function startEspTimmer() {
   console.log(`⏰ Starting esp timeout: ${espDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Esp timeout reached.`);
-    socket.emit('start-beat', { deviceId: DEVICE_ID });
+    isSendingBeats = true;
   }, espDuration * 1000);
 }
 
@@ -141,8 +154,7 @@ function startFakeEspTimmer() {
 const sendFakeBeat = () => {
   if (isExperience) {
     console.log(`❤️ beat!`);
-    const other_device = DEVICE_ID === 1 ? 2 : 1;
-    socket.emit('beat', { deviceId: other_device })
+    vibrate();
     setTimeout(() => sendFakeBeat(), 1000);
   }
 };
@@ -164,7 +176,7 @@ function endSession() {
     audioPlayer = null;
   }
 
-  socket.emit('stop', { deviceId: DEVICE_ID });
+  isSendingBeats = false;
 
   setTimeout(() => {
     videoInterface.style.display = 'none';
@@ -189,14 +201,6 @@ socket.on('connect', () => {
   socket.emit('join', { room: room });
 });
 
-socket.on('esp-joined', (data) => {
-  console.log(`esp joined: ${data.deviceId}`);
-});
-
-socket.on('stop', (data) => {
-  console.log(`stop from: ${data.deviceId}`);
-});
-
 socket.on('experience-started', (data) => {
   console.log(`Fake experience started from: ${data.deviceId}`);
   if (!isExperience && data.deviceId !== DEVICE_ID) {
@@ -211,32 +215,18 @@ socket.on('experience-started', (data) => {
   }
 });
 
-socket.on('start', async (data) => {
+socket.on('start', (data) => {
+  if (data.deviceId === DEVICE_ID) return;
   console.log(`start ${data.deviceId}`);
-  if (data.deviceId !== DEVICE_ID) {
-    isOtherConnected = !isExperience;
-    connectingScreen.style.display = 'none';
-    videoContainer.style.display = 'block';
-    videoInterface.style.display = 'block';
-  }
-  else {
-    isStarted = true;
-    homeScreen.style.display = 'none';
-    videoInterface.style.display = 'block';
-    await startAudio(connectingAudioFile);
-    await startSearchTimeout();
-  }
+  isOtherConnected = !isExperience;
+  connectingScreen.style.display = 'none';
+  videoContainer.style.display = 'block';
+  videoInterface.style.display = 'block';
 });
 
-socket.on('finger-misplaced', (data) => {
-  if (data.deviceId !== DEVICE_ID) return;
-  console.log(`👆 finger-misplaced: ${data.fingerMisplaced}`);
-  if (data.fingerMisplaced) {
-    fingerMisplaced.style.display = 'block';
-  }
-  else {
-    fingerMisplaced.style.display = 'none';
-  }
+socket.on('motor', (data) => {
+  if (data.deviceId === DEVICE_ID) return;
+  vibrate();
 });
 
 socket.on('peer_joined', (data) => {
@@ -347,3 +337,79 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     localStream = stream;
   })
   .catch(e => console.error(e));
+
+
+// --- Device (esp32 over Web Serial) ---
+// one message per line: "finger-on", "finger-off" and "beat" from the esp32, "vibrate" to it.
+function onDeviceMessage(message) {
+  switch (message) {
+    case 'finger-on':
+      fingerMisplaced.style.display = 'none';
+      if (!isStarted) startSession();
+      break;
+    case 'finger-off':
+      if (isStarted) fingerMisplaced.style.display = 'block';
+      break;
+    case 'beat':
+      if (isSendingBeats) socket.emit('beat', { deviceId: DEVICE_ID });
+      break;
+    default:
+      console.log('📟 device:', message);
+  }
+}
+
+function vibrate() {
+  if (!deviceWriter) return;
+  deviceWriter.write(new TextEncoder().encode('vibrate\n')).catch(e => console.error(e));
+}
+
+async function connectDevice(port) {
+  if (deviceWriter) return;
+  try {
+    await port.open({ baudRate: 115200 });
+  } catch (error) {
+    console.error('❌ Could not open device:', error);
+    return;
+  }
+  console.log('🔌 Device connected');
+  deviceWriter = port.writable.getWriter();
+  connectDeviceButton.style.display = 'none';
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (port.readable) {
+    const reader = port.readable.getReader();
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        lines.map(line => line.trim()).filter(Boolean).forEach(onDeviceMessage);
+      }
+    } catch (error) {
+      console.error('❌ Device read error:', error);
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  console.log('🔌 Device disconnected');
+  deviceWriter.releaseLock();
+  deviceWriter = null;
+  await port.close().catch(() => {});
+  connectDeviceButton.style.display = '';
+}
+
+if ('serial' in navigator) {
+  // Previously paired devices reconnect on their own: on page load and when plugged back in.
+  navigator.serial.getPorts().then(([port]) => port && connectDevice(port));
+  navigator.serial.addEventListener('connect', (event) => connectDevice(event.target));
+  connectDeviceButton.addEventListener('click', () => {
+    navigator.serial.requestPort().then(connectDevice).catch(e => console.error(e));
+  });
+}
+else {
+  console.error('❌ Web Serial is not supported in this browser, use Chrome or Edge.');
+}

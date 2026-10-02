@@ -79,6 +79,12 @@
     transform: none;
   }
 
+  .device-btn {
+    margin-top: 40px;
+    padding: 10px 30px;
+    font-size: 1em;
+  }
+
   /* Video Interface */
   .video-interface {
     display: none;

@@ -23,11 +23,14 @@ python main.py
 ```
 
 ## Device
+The esp32 is an io board for the web app: it is connected by USB to the installation computer and the web app talks to it with [Web Serial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) (Chrome or Edge only). It sends `finger-on`, `finger-off` and `beat`, and vibrates when it receives `vibrate` (one message per line, 115200 baud).
+
+The first time, click "Connect device" on the home screen and pick the esp32 port. The browser remembers it, so next time it connects on its own when the page loads or the device is plugged back in.
+
 upload the code to the esp32 using Platformio.
 
 requirements:
  - [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html) (`brew install platformio`)
- - `device/include/secrets.h` with `WIFI_SSID`, `WIFI_PASSWORD`, `SOCKETIO_HOST`, `SOCKETIO_PORT` and `DEVICE_ID` (this file is not committed).
 
 execute:
 1. connect the esp32 by USB.
