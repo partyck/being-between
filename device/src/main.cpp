@@ -66,7 +66,11 @@ void setup() {
 
   drv.selectLibrary(1);
   drv.setMode(DRV2605_MODE_INTTRIG);
-  drv.setWaveform(0, 84); // Efeito háptico
+  // Heartbeat: "lub" - pause - "dub"
+  drv.setWaveform(0, 1);          // Strong Click 100%  (lub)
+  drv.setWaveform(1, 0x80 | 20);  // wait 200 ms
+  drv.setWaveform(2, 18);         // Strong Click 80%   (dub)
+  drv.setWaveform(3, 0);          // end of sequence
 }
 
 void loop() {
