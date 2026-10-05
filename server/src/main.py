@@ -1,12 +1,16 @@
 import os
 
-from flask import Flask, Response, json, request
+from flask import Flask, Response, json, redirect, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
 app = Flask(__name__, static_url_path="")
 app.config["SECRET_KEY"] = "secret!"
 
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Cloud Run can't send responses over 32 MiB, so there the videos come from a Cloud Storage bucket (`make videos`).
+VIDEOS_URL = os.environ.get("VIDEOS_URL", "").rstrip("/")
+CERTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "certs")
 
 # MAIN_ROOM = "main-room"
 DEVICE_SID_1 = ""
@@ -75,6 +79,14 @@ def on_beat(data):
     socketio.emit("motor", data)
 
 
+# --- Fake experience videos ---
+@app.route("/videos/<filename>")
+def video(filename):
+    if VIDEOS_URL:
+        return redirect(f"{VIDEOS_URL}/{filename}")
+    return app.send_static_file(f"videos/{filename}")
+
+
 # --- Default Route to Serve index.html ---
 @app.route("/")
 def index():
@@ -88,6 +100,11 @@ def index():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    print(f"Server running on port {port}")
-    socketio.run(app, debug=True, port=port, host="0.0.0.0", keyfile="certs/key.pem", certfile="certs/cert.pem")
-    # socketio.run(app, debug=True, port=port, host="0.0.0.0")
+    debug = os.environ.get("DEBUG", "1") == "1"
+    # The camera and Web Serial need HTTPS, so locally it uses the self-signed certificates in server/certs.
+    # Cloud Run has none: it handles HTTPS itself and forwards plain HTTP to the container.
+    keyfile = os.path.join(CERTS_DIR, "key.pem")
+    certfile = os.path.join(CERTS_DIR, "cert.pem")
+    ssl = {"keyfile": keyfile, "certfile": certfile} if os.path.exists(keyfile) and os.path.exists(certfile) else {}
+    print(f"Server running on {'https' if ssl else 'http'}://0.0.0.0:{port}, debug {debug}")
+    socketio.run(app, debug=debug, port=port, host="0.0.0.0", **ssl)

@@ -1,0 +1,9 @@
+# Files `gcloud run deploy --source` doesn't upload. The videos are in a Cloud Storage bucket instead (`make videos`).
+.gcloudignore
+__pycache__/
+*.pyc
+.DS_Store
+*.pem
+.venv/
+certs/
+static/videos/

@@ -6,7 +6,7 @@ An interactive art installation by Gustiele Fistaról and Patrick Ortiz. There a
 
 ## Repo layout
 
-- `server/`: the Flask-SocketIO server (`src/main.py`) and the web app it serves (`src/static/`). It has a dev container in `.devcontainer/`.
+- `server/`: the Flask-SocketIO server (`src/main.py`) and the web app it serves (`src/static/`). `Makefile` runs it locally and deploys it to Cloud Run. It has a dev container in `.devcontainer/`.
 - `device/`: ESP32 firmware for the installation (PlatformIO). It reads the sensor and drives the vibrator for the web app.
 - `test-connections/`: separate ESP32 firmware for testing the sensor and the vibrator without the web app.
 - `device-design/`: the enclosure. `design-cutting-file.lbrn2` is the main LightBurn laser file. `cut try.lbrn2` and `acrilic 5mm.lbrn2` are test cuts. There is one SVG per component, and `messurements.md` has the component sizes. The laser settings for 3 mm acrylic are in the README.
@@ -70,34 +70,35 @@ pio device list                # find the port; pass it with --upload-port if ne
 
 ## Server and web app
 
-- **Stack:** Flask + Flask-SocketIO on eventlet. It serves `static/` at `/` and reads the port from `$PORT` (default 8080). Run it from `server/src` with `python main.py`, normally inside the dev container (Python 3.11, port 8080 forwarded, gcloud CLI installed).
-- **HTTPS is required.** The camera and Web Serial only work on HTTPS, so the server loads `certs/key.pem` and `certs/cert.pem` from `server/src/`. These are self-signed, not in the repo (`*.pem` is gitignored), and have to be generated locally.
+- **Stack:** Flask + Flask-SocketIO on eventlet. It serves `static/` at `/` and reads the port from `$PORT` (default 8080). Run it with `make run` from `server/` (same as `python main.py` in `server/src`), normally inside the dev container (Python 3.11, port 8080 forwarded, gcloud CLI installed). Debug is on unless `DEBUG=0`, which the Dockerfile sets.
+- **HTTPS is required.** The camera and Web Serial only work on HTTPS (or on `localhost`). When `server/certs/key.pem` and `cert.pem` exist, the server uses them. The path is relative to `main.py` and outside `src/`, so they never end up in the Docker image. Without them it serves plain HTTP, which is what Cloud Run needs. The certificates are self-signed, not in the repo (`*.pem` is gitignored), and have to be generated locally (README).
 - **SSL error in the log:** `ssl.SSLError: WRONG_VERSION_NUMBER` means a client connected with plain `http://`. The server has not crashed.
 - **Web Serial:** works in Chrome and Edge only. The first time, the "Connect device" button pairs the ESP32. After that, `navigator.serial.getPorts()` reconnects it on page load and when the USB is plugged back in.
-- **Media:** `static/videos/` (`fake-video-1..3.mp4`) is gitignored and has to be copied in by hand. The audio files are in git.
+- **Media:** `static/videos/` (`fake-video-1..3.mp4`, about 530 MB) is gitignored and has to be copied in by hand. It is also left out of the image and the Cloud Run upload (`.dockerignore`, `.gcloudignore`). Locally Flask serves the videos. When `$VIDEOS_URL` is set, `/videos/<file>` redirects there instead. On Cloud Run that is a public Cloud Storage bucket (`make videos`), because Cloud Run rejects HTTP/1 responses over 32 MiB. A page loaded from Cloud Run can't read videos from the installation's disk. The audio files are in git.
 - **Frontend:** plain JS with no build step. The socket.io client 4.0.1 comes from a CDN. p5 is also loaded from a CDN, but nothing uses it yet.
-- **Python dependencies:** `requirements.txt` lists many packages that `main.py` doesn't use (openai, opencv, numpy, grpc…). It only needs Flask, Flask-SocketIO and eventlet.
+- **Python dependencies:** `requirements.txt` has only Flask, Flask-SocketIO, eventlet and their dependencies, pinned. Flask 2.2 needs Werkzeug 2.2: Werkzeug 3 removed `url_quote` and breaks it.
 - **Style:** from the dev container settings. Python uses Black with line length 120 and isort with the black profile. JS and JSON use 2-space indents.
 
 ## Verifying changes
 
 There are no automated tests.
 - **Firmware:** run `pio run` in each firmware folder you changed.
-- **Server:** run `python3 -m py_compile server/src/main.py`.
+- **Server:** run `python3 -m py_compile server/src/main.py`. For changes to the image or the dependencies, run `docker build server/src` on the Mac, or `make docker` to run it on `http://localhost:8080`.
 - **Real behaviour:** this needs the hardware and both installations, `/?deviceid=1` and `/?deviceid=2`. Say clearly when something was only compiled and not tested on the device or in a browser.
 
 ## Constraints
 
 - **No recording.** The installation will show a sign saying no information from participants is recorded. Don't add anything that stores or logs video, images or heartbeat data.
 
-## Planned deployment (not done yet)
+## Deployment
 
-- **Installations:** each one will be a Raspberry Pi 400 running Chromium in kiosk mode, with the ESP32 on USB.
+- **Server:** GCP Cloud Run in `europe-west1` (Belgium), project `being-between-510716`. The region is `europe-west1` because Cloud Run domain mappings don't exist in every region, and the plan is to map `being-between.porpatrick.com` (DNS in Cloudflare). The videos bucket was created earlier in `europe-central2`, which doesn't matter, because browsers fetch the videos from it directly. Nothing has been deployed yet. `make videos` uploads the videos to a public bucket, and `make deploy` deploys from source with Cloud Build (README). The installations only open the Cloud Run URL.
+  - Every gcloud command in the Makefile uses the gcloud configuration `being-between`, which has the authors' private Google account, and the `PROJECT` set in `server/Makefile` (or passed with `PROJECT=<id>`). It never uses the active gcloud configuration or project, because on the dev Mac those are a work account.
+  - 1 vCPU: below 1 vCPU, Cloud Run allows only one request per instance, and each installation keeps a WebSocket open.
+  - `--min-instances=1 --max-instances=1`, because the Socket.IO rooms live in memory.
+  - `--timeout=3600`, because Cloud Run closes WebSockets at the request timeout, and 60 minutes is the maximum. Socket.IO then reconnects, the page sends `join` again, and the other installation rebuilds the WebRTC connection on `peer_joined`. Nobody has tested whether this works in the middle of a session.
+  - The only ICE server is Google's public STUN server. On restrictive venue networks, WebRTC may need a TURN server, or Tailscale on both installations.
+- **Installations (planned):** each one will be a Raspberry Pi 400 running Chromium in kiosk mode, with the ESP32 on USB.
   - The Linux user must be in the `dialout` group to open the serial port.
-  - A Chromium policy `SerialAllowUsbDevicesForUrls` (in `/etc/chromium/policies/managed/`) can pre-approve the ESP32 so nobody has to click "Connect device". The CP2102 IDs in decimal are vendor 4292, product 60000.
+  - A Chromium policy `SerialAllowUsbDevicesForUrls` (in `/etc/chromium/policies/managed/`) can pre-approve the ESP32 for the Cloud Run URL so nobody has to click "Connect device". The CP2102 IDs in decimal are vendor 4292, product 60000.
   - `--autoplay-policy=no-user-gesture-required` lets the audio play without a click.
-- **Server:** planned for GCP Cloud Run. `main.py` needs these changes first:
-  - Run without the certificates and with debug off. Cloud Run handles HTTPS and forwards plain HTTP to the container.
-  - Deploy with `--max-instances=1`, because the Socket.IO rooms live in memory, and with `--min-instances=1`.
-  - Set `--timeout=3600`, because Cloud Run closes WebSockets at the request timeout.
-  - Nobody has tested whether the WebRTC signalling survives a Socket.IO reconnect in the middle of a session.
