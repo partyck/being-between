@@ -1,5 +1,5 @@
 DONE - simplify the conection to the esp32. just an io board
-- check to make it online with gcp
+DONE - check to make it online with gcp
 - add the privacy text. 
 "Since we’re excited about the possibility of presenting this work in a public space, we’re happy to add a sign near the installation stating that no information from participants is being recorded."
 
@@ -16,7 +16,4 @@ DONE - add the new vivbration:
   drv.setWaveform(2, 2);          // Strong Click 60%   (dub)
   drv.setWaveform(3, 0);          // end of sequence
 
-- look for a box
-- with wip:
-    confirm the computer and monitor
     

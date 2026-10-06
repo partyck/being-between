@@ -1,4 +1,3 @@
-const socket = io();
 const homeScreen = document.getElementById('home');
 const videoInterface = document.getElementById('video-interface');
 const connectingScreen = document.getElementById('connecting-screen');
@@ -12,6 +11,8 @@ const connectDeviceButton = document.getElementById('connect-device');
 // constants
 const params = new URLSearchParams(document.location.search);
 const DEVICE_ID = parseInt(params.get("deviceid"), 10);
+// the server only accepts the two installations: device id 1 or 2, with the installation key when it has one
+const socket = io({ auth: { deviceId: DEVICE_ID, key: params.get('key') } });
 const room = 'video-room';
 const searchDuration = 20;
 const sessionDuration = 100;
@@ -201,9 +202,19 @@ socket.on('connect', () => {
   socket.emit('join', { room: room });
 });
 
+// a wrong device id or key, or the server can't be reached
+socket.on('connect_error', (error) => {
+  console.error('❌ Socket connection error:', error.message);
+});
+
+// "io server disconnect": another page connected with the same device id and replaced this one
+socket.on('disconnect', (reason) => {
+  console.log('socket disconnected:', reason);
+});
+
 socket.on('experience-started', (data) => {
   console.log(`Fake experience started from: ${data.deviceId}`);
-  if (!isExperience && data.deviceId !== DEVICE_ID) {
+  if (!isExperience) {
     isOtherConnected = false;
 
     homeScreen.style.display = 'flex';
@@ -216,7 +227,6 @@ socket.on('experience-started', (data) => {
 });
 
 socket.on('start', (data) => {
-  if (data.deviceId === DEVICE_ID) return;
   console.log(`start ${data.deviceId}`);
   isOtherConnected = !isExperience;
   connectingScreen.style.display = 'none';
@@ -224,8 +234,7 @@ socket.on('start', (data) => {
   videoInterface.style.display = 'block';
 });
 
-socket.on('motor', (data) => {
-  if (data.deviceId === DEVICE_ID) return;
+socket.on('motor', () => {
   vibrate();
 });
 

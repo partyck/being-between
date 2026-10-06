@@ -22,9 +22,20 @@ openssl req -x509 -newkey rsa:4096 -nodes -keyout certs/key.pem -out certs/cert.
 ```bash
 make run
 ```
-6. open `https://<computer ip>:8080/?deviceid=1` on one installation and `/?deviceid=2` on the other.
+6. open `https://<computer ip>:8080/?deviceid=1` on one installation and `/?deviceid=2` on the other. If `server/.env` has an installation key, add `&key=<key>` to both (see [installation key](#installation-key)).
 
 To test the same container that runs on Cloud Run, run `make docker` from `server/` on the Mac (Docker is not available inside the dev container) and open `http://localhost:8080/?deviceid=1`. It runs without certificates: Chrome allows the camera and Web Serial on `localhost`.
+
+## installation key
+The server only accepts the two installations: `deviceid=1` and `deviceid=2`, one connection each, with the installation key. If an installation connects again (after a reload, for example), the new connection replaces the old one. Without the key, anyone who finds the Cloud Run URL could open it with `?deviceid=1`, take that installation's place and see the visitors.
+
+The key is in `server/.env`, which is gitignored and never goes into the image. The dev container sees the same file. Create it once, from `server/`:
+```bash
+echo "INSTALLATION_KEY=$(openssl rand -hex 16)" > .env
+```
+`make run`, `make docker` and `make deploy` give it to the server, and `make deploy` refuses to run without it. The installations open `<url>/?deviceid=1&key=<key>` and `<url>/?deviceid=2&key=<key>`. Without `server/.env`, the local server accepts any client with a device id.
+
+On Cloud Run the key is the service's `INSTALLATION_KEY` environment variable. If you lose `server/.env`, you can find it in the Cloud Run console, in the details of the service's latest revision. To change the key, edit `server/.env`, run `make deploy` and update the URL on both installations.
 
 ## deploy server
 The server runs on GCP Cloud Run, in `europe-west1` (Belgium). Run these from `server/`, on the Mac or in the dev container (both have gcloud, but each keeps its own login, so do the one-time steps where you deploy from).
@@ -42,7 +53,8 @@ gcloud billing accounts list --configuration=being-between
 gcloud billing projects link <project-id> --billing-account=<billing-account-id> --configuration=being-between
 ```
 3. set `PROJECT` at the top of `server/Makefile` to `<project-id>`.
-4. upload the fake videos from `server/src/static/videos/` to a public Cloud Storage bucket (run it again when the videos change). Cloud Run can't send files over 32 MiB, so on Cloud Run the server redirects `/videos/…` to the bucket:
+4. create the [installation key](#installation-key) in `server/.env`.
+5. upload the fake videos from `server/src/static/videos/` to a public Cloud Storage bucket (run it again when the videos change). Cloud Run can't send files over 32 MiB, so on Cloud Run the server redirects `/videos/…` to the bucket:
 ```bash
 make videos
 ```
@@ -51,7 +63,7 @@ deploy:
 ```bash
 make deploy
 ```
-The first time, gcloud asks to enable the Cloud Run, Cloud Build and Artifact Registry APIs and to create a repository for the image: answer yes. At the end it prints the service URL. The installations open `<url>/?deviceid=1` and `<url>/?deviceid=2`.
+The first time, gcloud asks to enable the Cloud Run, Cloud Build and Artifact Registry APIs and to create a repository for the image: answer yes. At the end it prints the service URL. The installations open `<url>/?deviceid=1&key=<key>` and `<url>/?deviceid=2&key=<key>`, with the key from `server/.env`.
 
 Cloud Run closes the connection to each installation every 60 minutes, and every deploy closes it too. The web app reconnects on its own, but the video can stutter for a moment, so avoid deploying while the exhibition is open.
 
