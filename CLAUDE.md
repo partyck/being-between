@@ -44,7 +44,7 @@ The server only accepts the two installations. Each one opens `/?deviceid=1` or 
 3. After `espDuration` (43 s), real beats are sent to the other installation. In the fake experience, a 1 s timer vibrates the local device instead.
 4. After `sessionDuration` (100 s), `endSession()` returns to the home screen. The visitor has to lift their finger and place it again to start a new session.
 
-During a session, `finger-off` only shows "Please keep your finger on the device".
+During a session, `finger-off` only shows "Please keep your finger on the device", and only while a video is on screen (`updateFingerMisplaced()`). If the finger was lifted on the connecting screen, the message appears when the video starts.
 
 ## Firmware
 
@@ -76,7 +76,7 @@ pio device list                # find the port; pass it with --upload-port if ne
 - **Installation key:** `$INSTALLATION_KEY`, kept as `INSTALLATION_KEY=<key>` in `server/.env`. The file is gitignored and outside `src/`, so it never ends up in the image. The Makefile reads it and passes it to `run`, `docker` and `deploy`, where it becomes a Cloud Run env var. `make deploy` refuses to run without it. Without a key, the server accepts any client with a valid device id.
 - **Web Serial:** works in Chrome and Edge only. The first time, the "Connect device" button pairs the ESP32. After that, `navigator.serial.getPorts()` reconnects it on page load and when the USB is plugged back in.
 - **Media:** `static/videos/` (`fake-video-1..3.mp4`, about 530 MB) is gitignored and has to be copied in by hand. It is also left out of the image and the Cloud Run upload (`.dockerignore`, `.gcloudignore`). Locally Flask serves the videos. When `$VIDEOS_URL` is set, `/videos/<file>` redirects there instead. On Cloud Run that is a public Cloud Storage bucket (`make videos`), because Cloud Run rejects HTTP/1 responses over 32 MiB. A page loaded from Cloud Run can't read videos from the installation's disk. The audio files are in git.
-- **Frontend:** plain JS with no build step. The socket.io client 4.0.1 comes from a CDN. p5 is also loaded from a CDN, but nothing uses it yet.
+- **Frontend:** plain JS with no build step. The socket.io client 4.0.1 comes from a CDN. p5 1.11 also comes from a CDN. `background.js` uses it (in instance mode, so it doesn't clash with the globals in `script.js`) to draw the moving Perlin-noise background behind the home and connecting screens. The noise is drawn on a 96 px wide canvas that CSS stretches to the whole screen, so it stays cheap on the Pi. It stops drawing while a video covers the screen. While the connecting screen is visible, the purple slowly gathers into misty concentric rings centred on `.connecting-message`, which breathe (their spacing grows and shrinks over 6 s), and it spreads back into mist when the screen is gone. The static gradient on `body` is the fallback until p5 has loaded. Below the spinner, the connecting screen shows `assets/device.svg`, a small white line drawing of the device from above: the outline copied from the top layer of `device-design/design.svg` (`path2`), the sensor window as a red dot, and a hand with its index finger on it. If the enclosure changes, update the outline and the sensor position there.
 - **Python dependencies:** `requirements.txt` has only Flask, Flask-SocketIO, eventlet and their dependencies, pinned. Flask 2.2 needs Werkzeug 2.2: Werkzeug 3 removed `url_quote` and breaks it.
 - **Style:** from the dev container settings. Python uses Black with line length 120 and isort with the black profile. JS and JSON use 2-space indents.
 
@@ -89,7 +89,7 @@ There are no automated tests.
 
 ## Constraints
 
-- **No recording.** The installation will show a sign saying no information from participants is recorded. Don't add anything that stores or logs video, images or heartbeat data.
+- **No recording.** The installation will show a sign saying no information from participants is recorded. While a video is shown, the web app also shows "Your image and heartbeat are sent live to the other installation. Nothing is recorded." in the top right corner (`.privacy-notice` in `index.html`, shown and hidden by `script.js` together with the videos), with the same text in the real and the fake experience. It is not shown on the connecting screen. Don't add anything that stores or logs video, images or heartbeat data: that's why the server doesn't log `beat`.
 
 ## Deployment
 

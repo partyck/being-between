@@ -13,6 +13,19 @@
     justify-content: center;
   }
 
+  .background {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+  }
+
+  .background canvas {
+    display: block;
+    /* background.js draws a small canvas, stretched here to the whole screen. !important because p5 sets its size inline */
+    width: 100% !important;
+    height: 100% !important;
+  }
+
   .container {
     max-width: 800px;
     width: 100%;
@@ -56,6 +69,22 @@
     text-align: center;
   }
 
+  /* hidden until a video is shown, see script.js */
+  .privacy-notice {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1;
+    font-size: 1em;
+    font-weight: 100;
+    color: white;
+    text-align: right;
+    /* readable over bright videos too */
+    padding: 8px 12px;
+    border-radius: 6px;
+  }
+
   .connect-btn {
     background: rgba(255, 255, 255, 0.1);
     color: white;
@@ -93,21 +122,27 @@
     position: fixed;
     top: 0;
     left: 0;
-    background: #000;
   }
 
+  /* transparent, like .video-interface, so the moving background shows through */
   .connecting-screen {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }
 
   .connecting-message {
     text-align: center;
     color: white;
+  }
+
+  /* small line drawing of the device from above, with a hand on it and the sensor in red */
+  .device-drawing {
+    display: block;
+    height: 14vh;
+    margin: 40px auto 0;
   }
 
   .connecting-message h2 {

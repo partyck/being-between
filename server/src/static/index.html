@@ -10,6 +10,9 @@
 </head>
 
 <body>
+  <!-- moving background, drawn by background.js behind everything -->
+  <div id="background" class="background"></div>
+
   <div class="container">
     <!-- Initial Connect Screen -->
     <div id="home" class="home">
@@ -25,10 +28,10 @@
       <!-- Connecting Screen -->
       <div id="connecting-screen" class="connecting-screen">
         <div class="connecting-message">
-          <h2>Connecting...</h2>
-          <p>Looking for someone</p>
-          <p>Please wear the headphones</p>
+          <p>Looking for someone...</p>
+          <p>Please wear the headphones and keep your hand on the device</p>
           <div class="loading"></div>
+          <img class="device-drawing" src="assets/device.svg" alt="A hand on the device, with the index finger on the red sensor">
         </div>
       </div>
 
@@ -40,6 +43,9 @@
       <div id="fake-video-container" class="video-container">
         <video id="fake-video" autoplay></video>
       </div>
+
+      <!-- shown over both videos, script.js shows and hides it with them -->
+      <p id="privacy-notice" class="privacy-notice">Your image and heartbeat are sent live to the other installation.<br>Nothing is recorded.</p>
     </div>
 
     <h2 id="finger-misplaced" class="finger-misplaced">Please keep your finger on the device</h2>
@@ -47,6 +53,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/p5@1.11.8/lib/p5.min.js"></script>
+  <script src="background.js"></script>
   <script src="script.js"></script>
 </body>
 

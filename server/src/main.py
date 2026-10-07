@@ -106,7 +106,7 @@ def on_experience_started(data):
 
 @socketio.on("beat")
 def on_beat(data):
-    print("Beat from:", data["deviceId"])
+    # not logged: the beats are the visitor's heartbeat, and nothing about visitors is recorded
     socketio.emit("motor", data, skip_sid=request.sid)  # type: ignore
 
 

@@ -6,6 +6,7 @@ const remoteVideo = document.getElementById('remote-video');
 const fakeVideoContainer = document.getElementById('fake-video-container');
 const fakeVideo = document.getElementById('fake-video');
 const fingerMisplaced = document.getElementById('finger-misplaced');
+const privacyNotice = document.getElementById('privacy-notice');
 const connectDeviceButton = document.getElementById('connect-device');
 
 // constants
@@ -33,6 +34,7 @@ let isStarted = false;
 let isOtherConnected = false;
 let isExperience = false;
 let isSendingBeats = false;
+let isFingerOn = false;
 let deviceWriter = null;
 let localStream;
 let peerConnection;
@@ -102,6 +104,8 @@ function startExperience() {
   startAudio(sessionAudioFile);
   connectingScreen.style.display = 'none';
   videoContainer.style.display = 'block';
+  privacyNotice.style.display = 'block';
+  updateFingerMisplaced();
   isExperience = true;
   startSessionTimer();
   startEspTimmer();
@@ -124,6 +128,8 @@ function startFakeExperience() {
     console.log('✅ Video loaded successfully');
     connectingScreen.style.display = 'none';
     fakeVideoContainer.style.display = 'block';
+    privacyNotice.style.display = 'block';
+    updateFingerMisplaced();
     isExperience = true;
     socket.emit('experience-started', { deviceId: DEVICE_ID });
     startAudio(sessionAudioFile);
@@ -186,6 +192,7 @@ function endSession() {
     connectingScreen.style.display = 'flex';
     videoContainer.style.display = 'none';
     fakeVideoContainer.style.display = 'none';
+    privacyNotice.style.display = 'none';
 
     isStarted = false;
     isExperience = false;
@@ -223,6 +230,7 @@ socket.on('experience-started', (data) => {
     videoInterface.style.display = 'none';
     videoContainer.style.display = 'none';
     fakeVideoContainer.style.display = 'none';
+    privacyNotice.style.display = 'none';
   }
 });
 
@@ -231,6 +239,8 @@ socket.on('start', (data) => {
   isOtherConnected = !isExperience;
   connectingScreen.style.display = 'none';
   videoContainer.style.display = 'block';
+  privacyNotice.style.display = 'block';
+  updateFingerMisplaced();
   videoInterface.style.display = 'block';
 });
 
@@ -348,16 +358,24 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
   .catch(e => console.error(e));
 
 
+// "Please keep your finger on the device": only during a session, over a video
+function updateFingerMisplaced() {
+  const isVideoShown = videoContainer.style.display === 'block' || fakeVideoContainer.style.display === 'block';
+  fingerMisplaced.style.display = isStarted && !isFingerOn && isVideoShown ? 'block' : 'none';
+}
+
 // --- Device (esp32 over Web Serial) ---
 // one message per line: "finger-on", "finger-off" and "beat" from the esp32, "vibrate" to it.
 function onDeviceMessage(message) {
   switch (message) {
     case 'finger-on':
-      fingerMisplaced.style.display = 'none';
+      isFingerOn = true;
+      updateFingerMisplaced();
       if (!isStarted) startSession();
       break;
     case 'finger-off':
-      if (isStarted) fingerMisplaced.style.display = 'block';
+      isFingerOn = false;
+      updateFingerMisplaced();
       break;
     case 'beat':
       if (isSendingBeats) socket.emit('beat', { deviceId: DEVICE_ID });
