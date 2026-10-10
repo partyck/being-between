@@ -104,10 +104,11 @@ def on_experience_started(data):
     socketio.emit("experience-started", data, skip_sid=request.sid)  # type: ignore
 
 
-@socketio.on("beat")
-def on_beat(data):
-    # not logged: the beats are the visitor's heartbeat, and nothing about visitors is recorded
-    socketio.emit("motor", data, skip_sid=request.sid)  # type: ignore
+@socketio.on("heartbeat")
+def on_heartbeat(data):
+    # whether the visitor's finger is on the sensor: the other installation plays a fake heartbeat while it is.
+    # Not logged: nothing about visitors is recorded.
+    socketio.emit("heartbeat", data, skip_sid=request.sid)  # type: ignore
 
 
 # --- Fake experience videos ---

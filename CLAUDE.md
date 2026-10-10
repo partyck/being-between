@@ -1,6 +1,6 @@
 # Being, between
 
-An interactive art installation by Gustiele Fistaról and Patrick Ortiz. There are two identical installations. Each one has a screen with a camera and a small device with a heartbeat sensor and a vibration motor. A visitor places a finger on the sensor, the installation looks for a visitor at the other installation, and the two see each other over live video. Later in the session, each visitor feels the other's heartbeat as vibrations. If nobody is at the other installation, a pre-recorded video and a fake 60 bpm heartbeat play instead.
+An interactive art installation by Gustiele Fistaról and Patrick Ortiz. There are two identical installations. Each one has a screen with a camera and a small device with a heartbeat sensor and a vibration motor. A visitor places a finger on the sensor, the installation looks for a visitor at the other installation, and the two see each other over live video. Later in the session, each visitor feels the other's heartbeat as vibrations while the other visitor's finger is on the sensor. The heartbeat is a fake 60 bpm one, because the sensor takes too long to find real beats. If nobody is at the other installation, a pre-recorded video and a fake 60 bpm heartbeat play instead.
 
 `README.md` has the setup steps for people. `TODO.md` is the authors' own task list.
 
@@ -23,7 +23,7 @@ The ESP32 is only an IO board. It has no WiFi and keeps no session state. All th
 ### Serial protocol (`device/src/main.cpp` ⇄ `script.js`)
 
 The link runs at 115200 baud, with one plain-text message per line:
-- ESP32 → web app: `finger-on`, `finger-off`, `beat`
+- ESP32 → web app: `finger-on`, `finger-off`, `beat` (the web app ignores `beat`, see below)
 - web app → ESP32: `vibrate`
 
 To change or add a message, update both sides together: the firmware, and `onDeviceMessage()` / `vibrate()` in `script.js`.
@@ -33,15 +33,15 @@ To change or add a message, update both sides together: the firmware, and `onDev
 - `join`, `leave`, `signal` → `peer_joined`, `peer_left`, `signal`: WebRTC signalling. Every client joins the room `video-room`.
 - `start`: a visitor placed their finger.
 - `experience-started`: an installation switched to the fake experience. The other installation goes back to its home screen.
-- `beat`: the server sends it on as `motor`, and the other installation vibrates.
+- `heartbeat` `{ on }`: whether the visitor's finger is on the sensor, from `espDuration` on in the real experience. The other installation plays the fake heartbeat while `on` is true.
 
-The server only accepts the two installations. Each one opens `/?deviceid=1` or `/?deviceid=2` plus `&key=<installation key>`, and `script.js` sends both in the Socket.IO `auth`. Anything else gets a 400 from `/` and is refused by `connect`. `device_sids` in `main.py` keeps one connection per device id: a new connection replaces the old one and disconnects it, because after a reload or a Cloud Run reconnect the old one stays open until its ping times out. A client the server disconnects this way does not reconnect on its own. The server sends `start`, `experience-started` and `beat` to every client except the sender, which leaves only the other installation. The device id is still needed to choose the fake videos.
+The server only accepts the two installations. Each one opens `/?deviceid=1` or `/?deviceid=2` plus `&key=<installation key>`, and `script.js` sends both in the Socket.IO `auth`. Anything else gets a 400 from `/` and is refused by `connect`. `device_sids` in `main.py` keeps one connection per device id: a new connection replaces the old one and disconnects it, because after a reload or a Cloud Run reconnect the old one stays open until its ping times out. A client the server disconnects this way does not reconnect on its own. The server sends `start`, `experience-started` and `heartbeat` to every client except the sender, which leaves only the other installation. The device id is still needed to choose the fake videos.
 
 ### Session flow (`script.js`)
 
 1. `finger-on` → `startSession()`: emits `start`, plays the connecting audio and waits `searchDuration` (20 s).
 2. If the other installation sent `start` during the wait, the real experience starts with WebRTC video. If not, the fake experience plays a random video from `static/videos/`, chosen per device id.
-3. After `espDuration` (43 s), real beats are sent to the other installation. In the fake experience, a 1 s timer vibrates the local device instead.
+3. After `espDuration` (43 s), each `finger-on` / `finger-off` is sent to the other installation as `heartbeat`, which vibrates its device at 60 bpm while the finger is on. `endSession()` sends `on: false`. In the fake experience, the local device vibrates at 60 bpm from `espDuration` on instead. Both use the same 1 s clock (`isHeartbeatPlaying`), so a flickering finger (the firmware doesn't debounce it) can only drop beats, not add them.
 4. After `sessionDuration` (100 s), `endSession()` returns to the home screen. The visitor has to lift their finger and place it again to start a new session.
 
 During a session, `finger-off` only shows "Please keep your finger on the device", and only while a video is on screen (`updateFingerMisplaced()`). If the finger was lifted on the connecting screen, the message appears when the video starts.
@@ -50,7 +50,7 @@ During a session, `finger-off` only shows "Please keep your finger on the device
 
 - **Board:** `esp32dev` with a CP2102 USB chip. On the Mac it appears as `/dev/cu.usbserial-0001`. `/dev/cu.SLAB_USBtoUART` is the same board, not a second one.
 - **Wiring:** two separate I2C buses. The DRV2605 haptic driver is on `TwoWire(0)`, SDA 18 / SCL 19. The MAX30105/MAX30102 heart sensor is on `TwoWire(1)`, SDA 25 / SCL 26. Trust the `#define`s: the comment next to the DRV pins still says GPIO21/22.
-- **Sensing:** a finger counts as present when IR > 50000. Beats come from SparkFun's `checkForBeat()`.
+- **Sensing:** a finger counts as present when IR > 50000. Beats come from SparkFun's `checkForBeat()`, but they take too long to come, so the web app ignores them and plays a fake heartbeat.
 - **Haptics:** DRV2605 library 1 (ERM motors) in internal-trigger mode. A "lub-dub" sequence (Strong Click 100% → 200 ms wait → Strong Click 80%) is loaded once in `setup()`, and `drv.go()` plays it. The sequence lasts about 250 ms. If the motor feels weak, try `selectLibrary()` 2–5, which are timed for slower motors.
 - **Duplicated sequence:** the same sequence is copied into `device/` and `test-connections/`. Keep the two in sync.
 - **`test-connections/`:** it does not use the serial protocol. It prints `IR=…, BPM=…, Avg BPM=…` and pulses the vibrator itself at the average of the last 4 BPM readings, so the rhythm keeps going when a beat is missed.
@@ -89,7 +89,7 @@ There are no automated tests.
 
 ## Constraints
 
-- **No recording.** The installation will show a sign saying no information from participants is recorded. While a video is shown, the web app also shows "Your image and heartbeat are sent live to the other installation. Nothing is recorded." in the top right corner (`.privacy-notice` in `index.html`, shown and hidden by `script.js` together with the videos), with the same text in the real and the fake experience. It is not shown on the connecting screen. Don't add anything that stores or logs video, images or heartbeat data: that's why the server doesn't log `beat`.
+- **No recording.** The installation will show a sign saying no information from participants is recorded. While a video is shown, the web app also shows "Your image and heartbeat are sent live to the other installation. Nothing is recorded." in the top right corner (`.privacy-notice` in `index.html`, shown and hidden by `script.js` together with the videos), with the same text in the real and the fake experience. It is not shown on the connecting screen. Don't add anything that stores or logs video, images or heartbeat data: that's why the server doesn't log `heartbeat`.
 
 ## Deployment
 

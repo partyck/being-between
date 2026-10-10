@@ -33,7 +33,8 @@ let audioPlayer = null;
 let isStarted = false;
 let isOtherConnected = false;
 let isExperience = false;
-let isSendingBeats = false;
+let isSendingHeartbeat = false;
+let isHeartbeatPlaying = false;
 let isFingerOn = false;
 let deviceWriter = null;
 let localStream;
@@ -146,7 +147,8 @@ function startEspTimmer() {
   console.log(`⏰ Starting esp timeout: ${espDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Esp timeout reached.`);
-    isSendingBeats = true;
+    isSendingHeartbeat = true;
+    sendHeartbeat();
   }, espDuration * 1000);
 }
 
@@ -154,17 +156,24 @@ function startFakeEspTimmer() {
   console.log(`⏰ Starting esp fake timeout: ${espDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Esp fake timeout reached.`);
-    sendFakeBeat();
+    isHeartbeatPlaying = true;
   }, espDuration * 1000);
 }
 
-const sendFakeBeat = () => {
-  if (isExperience) {
+// The heartbeat is always a fake one at 60 bpm, because the sensor takes too long to find real beats.
+// In the real experience it plays while the other visitor's finger is on their sensor ('heartbeat'),
+// in the fake experience from espDuration on. It runs on a steady clock, so a flickering finger can't add beats.
+setInterval(() => {
+  if (isHeartbeatPlaying) {
     console.log(`❤️ beat!`);
     vibrate();
-    setTimeout(() => sendFakeBeat(), 1000);
   }
-};
+}, 1000);
+
+// tells the other installation whether to play this visitor's heartbeat
+function sendHeartbeat() {
+  socket.emit('heartbeat', { deviceId: DEVICE_ID, on: isSendingHeartbeat && isFingerOn });
+}
 
 function startSessionTimer() {
   console.log(`⏰ Starting session timeout: ${sessionDuration} seconds`);
@@ -183,7 +192,10 @@ function endSession() {
     audioPlayer = null;
   }
 
-  isSendingBeats = false;
+  if (isSendingHeartbeat) {
+    isSendingHeartbeat = false;
+    sendHeartbeat();
+  }
 
   setTimeout(() => {
     videoInterface.style.display = 'none';
@@ -196,6 +208,7 @@ function endSession() {
 
     isStarted = false;
     isExperience = false;
+    isHeartbeatPlaying = false;
     isOtherConnected = false;
 
   }, 500);
@@ -244,8 +257,9 @@ socket.on('start', (data) => {
   videoInterface.style.display = 'block';
 });
 
-socket.on('motor', () => {
-  vibrate();
+// the other visitor's finger went on or off their sensor, in the real experience
+socket.on('heartbeat', (data) => {
+  if (isExperience) isHeartbeatPlaying = data.on;
 });
 
 socket.on('peer_joined', (data) => {
@@ -372,13 +386,15 @@ function onDeviceMessage(message) {
       isFingerOn = true;
       updateFingerMisplaced();
       if (!isStarted) startSession();
+      if (isSendingHeartbeat) sendHeartbeat();
       break;
     case 'finger-off':
       isFingerOn = false;
       updateFingerMisplaced();
+      if (isSendingHeartbeat) sendHeartbeat();
       break;
     case 'beat':
-      if (isSendingBeats) socket.emit('beat', { deviceId: DEVICE_ID });
+      // ignored: the sensor takes too long to find beats, so the other installation plays a fake heartbeat
       break;
     default:
       console.log('📟 device:', message);
