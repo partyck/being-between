@@ -63,12 +63,21 @@ deploy:
 ```bash
 make deploy
 ```
-The first time, gcloud asks to enable the Cloud Run, Cloud Build and Artifact Registry APIs and to create a repository for the image: answer yes. At the end it prints the service URL. The installations open `<url>/?deviceid=1&key=<key>` and `<url>/?deviceid=2&key=<key>`, with the key from `server/.env`.
+The first time, gcloud asks to enable the Cloud Run, Cloud Build and Artifact Registry APIs and to create a repository for the image: answer yes. At the end it prints the service URL.
+
+The server is live at `https://being-between.porpatrick.com`. The installations open `https://being-between.porpatrick.com/?deviceid=1&key=<key>` and `https://being-between.porpatrick.com/?deviceid=2&key=<key>`, with the key from `server/.env`.
+
+The domain is a Cloud Run domain mapping, set up once: `porpatrick.com` is verified for the private Google account, and Cloudflare has a CNAME `being-between` → `ghs.googlehosted.com`. Keep that record **DNS only** (grey cloud), not proxied: Google issues and renews the HTTPS certificate, and that needs the name to point at Google. To recreate the mapping:
+```bash
+gcloud beta run domain-mappings create --service=being-between --domain=being-between.porpatrick.com --region=europe-west1 --configuration=being-between --project=being-between-510716
+```
 
 Cloud Run closes the connection to each installation every 60 minutes, and every deploy closes it too. The web app reconnects on its own, but the video can stutter for a moment, so avoid deploying while the exhibition is open.
 
 ## Device
 The esp32 is an io board for the web app: it is connected by USB to the installation computer and the web app talks to it with [Web Serial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) (Chrome or Edge only). It sends `finger-on`, `finger-off` and `beat`, and vibrates when it receives `vibrate` (one message per line, 115200 baud).
+
+The sensor takes too long to find beats, so the web app ignores `beat` and the heartbeat is a fake one: in the real experience, from 43 s into the video, each installation vibrates at 60 bpm while the visitor at the other installation has their finger on the sensor. In the fake experience, it vibrates at 60 bpm from 43 s on.
 
 The first time, click "Connect device" on the home screen and pick the esp32 port. The browser remembers it, so next time it connects on its own when the page loads or the device is plugged back in.
 
@@ -92,7 +101,7 @@ pio run -t upload
 pio device monitor
 ```
 
-If the port is not detected, list the devices with `pio device list` and pass it with `--upload-port`, e.g. `pio run -t upload --upload-port /dev/cu.usbserial-0001`. To test only the sensor and the vibrator without WiFi, run the same commands from `test-connections/`.
+If the port is not detected, list the devices with `pio device list` and pass it with `--upload-port`, e.g. `pio run -t upload --upload-port /dev/cu.usbserial-0001`. To test only the sensor and the vibrator without the web app, run the same commands from `test-connections/`.
 
 ## Layout
 for laser cutter 3mm acrylic sheet use the following settings:

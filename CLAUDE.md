@@ -93,7 +93,10 @@ There are no automated tests.
 
 ## Deployment
 
-- **Server:** GCP Cloud Run in `europe-west1` (Belgium), project `being-between-510716`. The region is `europe-west1` because Cloud Run domain mappings don't exist in every region, and the plan is to map `being-between.porpatrick.com` (DNS in Cloudflare). The videos bucket was created earlier in `europe-central2`, which doesn't matter, because browsers fetch the videos from it directly. Nothing has been deployed yet. `make videos` uploads the videos to a public bucket, and `make deploy` deploys from source with Cloud Build (README). The installations only open the Cloud Run URL.
+- **Server:** deployed on GCP Cloud Run, service `being-between` in `europe-west1` (Belgium), project `being-between-510716`. `make videos` uploads the videos to a public bucket, and `make deploy` deploys from source with Cloud Build (README).
+  - The installations open `https://being-between.porpatrick.com/?deviceid=1&key=<key>` and `/?deviceid=2&key=<key>`. The domain is a Cloud Run domain mapping, which is why the region is `europe-west1`: domain mappings don't exist in every region. The service URL `https://being-between-4pqnsszcqa-ew.a.run.app` also works, but it is a different origin, so the browser asks again for the camera and the serial port.
+  - The DNS is in Cloudflare: a CNAME `being-between` → `ghs.googlehosted.com`. Keep it DNS only (not proxied): Google issues and renews the HTTPS certificate for the mapping, and that needs the name to point at Google.
+  - The videos are in the public bucket `being-between-510716-videos`, in `europe-central2`. The region doesn't matter, because browsers fetch the videos from it directly. Cloud Run has `VIDEOS_URL` set to it.
   - Every gcloud command in the Makefile uses the gcloud configuration `being-between`, which has the authors' private Google account, and the `PROJECT` set in `server/Makefile` (or passed with `PROJECT=<id>`). It never uses the active gcloud configuration or project, because on the dev Mac those are a work account.
   - 1 vCPU: below 1 vCPU, Cloud Run allows only one request per instance, and each installation keeps a WebSocket open.
   - `--min-instances=1 --max-instances=1`, because the Socket.IO rooms live in memory.
@@ -101,5 +104,5 @@ There are no automated tests.
   - The only ICE server is Google's public STUN server. On restrictive venue networks, WebRTC may need a TURN server, or Tailscale on both installations.
 - **Installations (planned):** each one will be a Raspberry Pi 400 running Chromium in kiosk mode, with the ESP32 on USB.
   - The Linux user must be in the `dialout` group to open the serial port.
-  - A Chromium policy `SerialAllowUsbDevicesForUrls` (in `/etc/chromium/policies/managed/`) can pre-approve the ESP32 for the Cloud Run URL so nobody has to click "Connect device". The CP2102 IDs in decimal are vendor 4292, product 60000.
+  - A Chromium policy `SerialAllowUsbDevicesForUrls` (in `/etc/chromium/policies/managed/`) can pre-approve the ESP32 for `https://being-between.porpatrick.com` so nobody has to click "Connect device". The CP2102 IDs in decimal are vendor 4292, product 60000.
   - `--autoplay-policy=no-user-gesture-required` lets the audio play without a click.
