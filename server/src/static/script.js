@@ -18,6 +18,7 @@ const room = 'video-room';
 const searchDuration = 20;
 const sessionDuration = 100;
 const espDuration = 43;
+const cursorHideDuration = 3;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
 const fakeVideos1 = [
@@ -456,3 +457,13 @@ if ('serial' in navigator) {
 else {
   console.error('❌ Web Serial is not supported in this browser, use Chrome or Edge.');
 }
+
+// The cursor hides after a few seconds without mouse movement, so it doesn't stay on the installation's screen.
+let hideCursorTimeout;
+function showCursor() {
+  document.body.classList.remove('hide-cursor');
+  clearTimeout(hideCursorTimeout);
+  hideCursorTimeout = setTimeout(() => document.body.classList.add('hide-cursor'), cursorHideDuration * 1000);
+}
+document.addEventListener('mousemove', showCursor);
+showCursor();
