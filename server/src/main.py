@@ -14,7 +14,8 @@ VIDEOS_URL = os.environ.get("VIDEOS_URL", "").rstrip("/")
 CERTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "certs")
 
 # Only the two installations can use the server. Each one opens /?deviceid=1 or /?deviceid=2, plus &key=<key> when
-# $INSTALLATION_KEY is set (server/.env, README). Without the key, any client with a device id is accepted.
+# $INSTALLATION_KEY is set (server/.env locally, Secret Manager on Cloud Run, README). Without the key, any client with
+# a device id is accepted.
 DEVICE_IDS = ("1", "2")
 INSTALLATION_KEY = os.environ.get("INSTALLATION_KEY", "")
 # the Socket.IO connection (sid) of each installation, by device id

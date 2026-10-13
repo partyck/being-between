@@ -29,13 +29,22 @@ To test the same container that runs on Cloud Run, run `make docker` from `serve
 ## installation key
 The server only accepts the two installations: `deviceid=1` and `deviceid=2`, one connection each, with the installation key. If an installation connects again (after a reload, for example), the new connection replaces the old one. Without the key, anyone who finds the Cloud Run URL could open it with `?deviceid=1`, take that installation's place and see the visitors.
 
-The key is in `server/.env`, which is gitignored and never goes into the image. The dev container sees the same file. Create it once, from `server/`:
+The local server and the deployed one have separate keys.
+
+**Local:** the key is in `server/.env`, which is gitignored and never goes into the image. The dev container sees the same file. Create it once, from `server/`:
 ```bash
 echo "INSTALLATION_KEY=$(openssl rand -hex 16)" > .env
 ```
-`make run`, `make docker` and `make deploy` give it to the server, and `make deploy` refuses to run without it. The installations open `<url>/?deviceid=1&key=<key>` and `<url>/?deviceid=2&key=<key>`. Without `server/.env`, the local server accepts any client with a device id.
+`make run` and `make docker` give it to the server. Without `server/.env`, the local server accepts any client with a device id.
 
-On Cloud Run the key is the service's `INSTALLATION_KEY` environment variable. If you lose `server/.env`, you can find it in the Cloud Run console, in the details of the service's latest revision. To change the key, edit `server/.env`, run `make deploy` and update the URL on both installations.
+**Deployed:** the key is the Secret Manager secret `installation-key`, and Cloud Run gives it to the server as `INSTALLATION_KEY`. Run these from `server/`:
+- `make secret` (one time): creates the secret with a random key and lets Cloud Run read it.
+- `make key`: prints the key.
+- `make new-key`: replaces the key with a new random one. Run `make deploy` for it to take effect, then update the URL on both installations.
+
+`make deploy` refuses to run without the secret. It pins the secret's current version, so the key only changes when you deploy.
+
+The installations open `<url>/?deviceid=1&key=<key>` and `<url>/?deviceid=2&key=<key>`.
 
 ## deploy server
 The server runs on GCP Cloud Run, in `europe-west1` (Belgium). Run these from `server/`, on the Mac or in the dev container (both have gcloud, but each keeps its own login, so do the one-time steps where you deploy from).
@@ -53,7 +62,10 @@ gcloud billing accounts list --configuration=being-between
 gcloud billing projects link <project-id> --billing-account=<billing-account-id> --configuration=being-between
 ```
 3. set `PROJECT` at the top of `server/Makefile` to `<project-id>`.
-4. create the [installation key](#installation-key) in `server/.env`.
+4. create the [installation key](#installation-key) in Secret Manager:
+```bash
+make secret
+```
 5. upload the fake videos from `server/src/static/videos/` to a public Cloud Storage bucket (run it again when the videos change). Cloud Run can't send files over 32 MiB, so on Cloud Run the server redirects `/videos/…` to the bucket:
 ```bash
 make videos
@@ -65,7 +77,7 @@ make deploy
 ```
 The first time, gcloud asks to enable the Cloud Run, Cloud Build and Artifact Registry APIs and to create a repository for the image: answer yes. At the end it prints the service URL.
 
-The server is live at `https://being-between.porpatrick.com`. The installations open `https://being-between.porpatrick.com/?deviceid=1&key=<key>` and `https://being-between.porpatrick.com/?deviceid=2&key=<key>`, with the key from `server/.env`.
+The server is live at `https://being-between.porpatrick.com`. The installations open `https://being-between.porpatrick.com/?deviceid=1&key=<key>` and `https://being-between.porpatrick.com/?deviceid=2&key=<key>`, with the key from `make key`.
 
 The domain is a Cloud Run domain mapping, set up once: `porpatrick.com` is verified for the private Google account, and Cloudflare has a CNAME `being-between` → `ghs.googlehosted.com`. Keep that record **DNS only** (grey cloud), not proxied: Google issues and renews the HTTPS certificate, and that needs the name to point at Google. To recreate the mapping:
 ```bash
