@@ -9,6 +9,7 @@ An interactive art installation by Gustiele Fistaról and Patrick Ortiz. There a
 - `server/`: the Flask-SocketIO server (`src/main.py`) and the web app it serves (`src/static/`). `Makefile` runs it locally and deploys it to Cloud Run. It has a dev container in `.devcontainer/`.
 - `device/`: ESP32 firmware for the installation (PlatformIO). It reads the sensor and drives the vibrator for the web app.
 - `test-connections/`: separate ESP32 firmware for testing the sensor and the vibrator without the web app.
+- `raspberry-pi/setup-kiosk.sh`: turns a Raspberry Pi into an installation that opens the web app in Chromium kiosk mode at boot (README).
 - `device-design/`: the enclosure. `design-cutting-file.lbrn2` is the main LightBurn laser file. `cut try.lbrn2` and `acrilic 5mm.lbrn2` are test cuts. There is one SVG per component, and `messurements.md` has the component sizes. The laser settings for 3 mm acrylic are in the README.
 
 ## How it fits together
@@ -102,7 +103,10 @@ There are no automated tests.
   - `--min-instances=1 --max-instances=1`, because the Socket.IO rooms live in memory.
   - `--timeout=3600`, because Cloud Run closes WebSockets at the request timeout, and 60 minutes is the maximum. Socket.IO then reconnects, the page sends `join` again, and the other installation rebuilds the WebRTC connection on `peer_joined`. Nobody has tested whether this works in the middle of a session.
   - The only ICE server is Google's public STUN server. On restrictive venue networks, WebRTC may need a TURN server, or Tailscale on both installations.
-- **Installations (planned):** each one will be a Raspberry Pi 400 running Chromium in kiosk mode, with the ESP32 on USB.
-  - The Linux user must be in the `dialout` group to open the serial port.
-  - A Chromium policy `SerialAllowUsbDevicesForUrls` (in `/etc/chromium/policies/managed/`) can pre-approve the ESP32 for `https://being-between.porpatrick.com` so nobody has to click "Connect device". The CP2102 IDs in decimal are vendor 4292, product 60000.
-  - `--autoplay-policy=no-user-gesture-required` lets the audio play without a click.
+- **Installations:** each one is a Raspberry Pi 400 with Raspberry Pi OS (with desktop) running Chromium in kiosk mode, with the ESP32 on USB. `raspberry-pi/setup-kiosk.sh <url>` sets it up, run on the Pi as the desktop user:
+  - It writes `~/.local/bin/being-between-kiosk` (the url is baked in) and starts it from `~/.config/autostart/`. It also adds it to `~/.config/labwc/autostart` if the system labwc autostart doesn't run XDG autostart. A `flock` stops a second copy.
+  - The launcher waits up to about a minute for the network, then runs Chromium in a loop, so it comes back if it closes. It uses its own profile (`~/.config/being-between-kiosk`), so it is always a new Chromium process, and it marks the last exit as clean so Chromium doesn't offer to restore pages.
+  - Flags: `--kiosk`, `--autoplay-policy=no-user-gesture-required` (audio without a click), `--password-store=basic` (no keyring prompt on autologin), no Translate, no update nag.
+  - Chromium policies in `/etc/chromium/policies/managed/` and `/etc/chromium-browser/policies/managed/` (the directory depends on the package): `VideoCaptureAllowedUrls` and `SerialAllowUsbDevicesForUrls` for the url's origin, so nobody has to allow the camera or click "Connect device". The CP2102 IDs in decimal are vendor 4292, product 60000.
+  - It adds the user to `dialout` (needed to open the serial port) and uses `raspi-config` for desktop autologin (`B4`) and to turn screen blanking off.
+  - Only dry-run on the Mac with stubbed commands so far, not yet tested on a Pi.

@@ -86,6 +86,20 @@ gcloud beta run domain-mappings create --service=being-between --domain=being-be
 
 Cloud Run closes the connection to each installation every 60 minutes, and every deploy closes it too. The web app reconnects on its own, but the video can stutter for a moment, so avoid deploying while the exhibition is open.
 
+## Raspberry Pi
+Each installation is a Raspberry Pi with Raspberry Pi OS (with desktop) and Chromium. `raspberry-pi/setup-kiosk.sh` makes it open the web app full screen at every boot: it logs into the desktop on its own, keeps the screen on, reopens Chromium if it closes, and lets the page use the camera and the esp32 without asking.
+
+1. copy the script to the Pi, from the repo on the Mac:
+```bash
+scp raspberry-pi/setup-kiosk.sh <user>@<pi ip>:
+```
+2. on the Pi (over SSH), run it with the installation's url, in quotes, then reboot:
+```bash
+bash setup-kiosk.sh 'https://being-between.porpatrick.com/?deviceid=1&key=<key>'
+sudo reboot
+```
+Run it again to change the url. To leave the kiosk for maintenance, run `pkill -f being-between-kiosk` over SSH. It comes back at the next boot.
+
 ## Device
 The esp32 is an io board for the web app: it is connected by USB to the installation computer and the web app talks to it with [Web Serial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) (Chrome or Edge only). It sends `finger-on`, `finger-off` and `beat`, and vibrates when it receives `vibrate` (one message per line, 115200 baud).
 
