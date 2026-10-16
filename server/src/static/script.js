@@ -22,17 +22,17 @@ const cursorHideDuration = 3;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
 const fakeVideos1 = [
-  // 'videos/fake-video-1.mp4',
-  // 'videos/fake-video-2.mp4',
-  'videos/bb-wip-cafe-1.mov',
-  'videos/bb-wip-cafe-2.mov',
-  'videos/bb-wip-cafe-3.mov'
-];
-const fakeVideos2 = [
-  // 'videos/fake-video-3.mp4',
+  // 'videos/fake-video-1.mp4', charli cafe
+  // 'videos/fake-video-2.mp4', 
   'videos/bb-wip-center-1.mov',
   'videos/bb-wip-center-2.mov',
   'videos/bb-wip-center-3.mov'
+];
+const fakeVideos2 = [
+  // 'videos/fake-video-3.mp4', lali ccenter 
+  'videos/bb-wip-cafe-1.mov',
+  'videos/bb-wip-cafer-2.mov',
+  'videos/bb-wip-cafe-3.mov'
 ];
 
 // variables
@@ -132,8 +132,17 @@ function startFakeExperience() {
   fakeVideo.loop = true;
   fakeVideo.muted = true;
 
-  fakeVideo.onloadeddata = function () {
-    console.log('✅ Video loaded successfully');
+  // Chrome fires 'loadeddata' while the video is still paused on its first frame, so it is shown only once it plays.
+  // Without the kiosk's autoplay flag, Chrome doesn't autoplay a hidden video, so it is started here.
+  fakeVideo.oncanplaythrough = function () {
+    fakeVideo.oncanplaythrough = null;
+    fakeVideo.play().catch(error => console.log('❌ Video failed to play:', error));
+  };
+
+  fakeVideo.onplaying = function () {
+    // only the first time: 'playing' fires again after every stall
+    fakeVideo.onplaying = null;
+    console.log('✅ Video playing');
     connectingScreen.style.display = 'none';
     fakeVideoContainer.style.display = 'block';
     privacyNotice.style.display = 'block';

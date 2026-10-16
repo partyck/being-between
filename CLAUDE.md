@@ -41,7 +41,7 @@ The server only accepts the two installations. Each one opens `/?deviceid=1` or 
 ### Session flow (`script.js`)
 
 1. `finger-on` → `startSession()`: emits `start`, plays the connecting audio and waits `searchDuration` (20 s).
-2. If the other installation sent `start` during the wait, the real experience starts with WebRTC video. If not, the fake experience plays a random video from `static/videos/`, chosen per device id.
+2. If the other installation sent `start` during the wait, the real experience starts with WebRTC video. If not, the fake experience plays a random video from `static/videos/`, chosen per device id. It is started with `play()` on `canplaythrough` and only shown on its first `playing`. Don't show it on `loadeddata`: Chrome fires that while the video is still paused, so the first frame stays frozen on screen. Without the kiosk's autoplay flag, Chrome also doesn't autoplay a hidden video.
 3. After `espDuration` (43 s), each `finger-on` / `finger-off` is sent to the other installation as `heartbeat`, which vibrates its device at 60 bpm while the finger is on. `endSession()` sends `on: false`. In the fake experience, the local device vibrates at 60 bpm from `espDuration` on instead. Both use the same 1 s clock (`isHeartbeatPlaying`), so a flickering finger (the firmware doesn't debounce it) can only drop beats, not add them.
 4. After `sessionDuration` (100 s), `endSession()` returns to the home screen. The visitor has to lift their finger and place it again to start a new session.
 
