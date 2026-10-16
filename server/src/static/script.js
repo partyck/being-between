@@ -31,7 +31,7 @@ const fakeVideos1 = [
 const fakeVideos2 = [
   // 'videos/fake-video-3.mp4', lali ccenter 
   'videos/bb-wip-cafe-1.mov',
-  'videos/bb-wip-cafer-2.mov',
+  'videos/bb-wip-cafe-2.mov',
   'videos/bb-wip-cafe-3.mov'
 ];
 
