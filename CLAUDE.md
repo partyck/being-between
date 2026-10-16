@@ -45,6 +45,8 @@ The server only accepts the two installations. Each one opens `/?deviceid=1` or 
 3. After `espDuration` (43 s), each `finger-on` / `finger-off` is sent to the other installation as `heartbeat`, which vibrates its device at 60 bpm while the finger is on. `endSession()` sends `on: false`. In the fake experience, the local device vibrates at 60 bpm from `espDuration` on instead. Both use the same 1 s clock (`isHeartbeatPlaying`), so a flickering finger (the firmware doesn't debounce it) can only drop beats, not add them.
 4. After `sessionDuration` (100 s), `endSession()` returns to the home screen. The visitor has to lift their finger and place it again to start a new session.
 
+For testing without the device, holding the "b" key sends `finger-on` and releasing it sends `finger-off`, through the same `onDeviceMessage()`.
+
 During a session, `finger-off` only shows "Please keep your finger on the device", and only while a video is on screen (`updateFingerMisplaced()`). If the finger was lifted on the connecting screen, the message appears when the video starts.
 
 ## Firmware

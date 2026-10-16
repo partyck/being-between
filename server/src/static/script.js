@@ -22,11 +22,17 @@ const cursorHideDuration = 3;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
 const fakeVideos1 = [
-  'videos/fake-video-1.mp4',
-  'videos/fake-video-2.mp4',
+  // 'videos/fake-video-1.mp4',
+  // 'videos/fake-video-2.mp4',
+  'videos/bb-wip-cafe-1.mov',
+  'videos/bb-wip-cafe-2.mov',
+  'videos/bb-wip-cafe-3.mov'
 ];
 const fakeVideos2 = [
-  'videos/fake-video-3.mp4',
+  // 'videos/fake-video-3.mp4',
+  'videos/bb-wip-center-1.mov',
+  'videos/bb-wip-center-2.mov',
+  'videos/bb-wip-center-3.mov'
 ];
 
 // variables
@@ -457,6 +463,22 @@ if ('serial' in navigator) {
 else {
   console.error('❌ Web Serial is not supported in this browser, use Chrome or Edge.');
 }
+
+// For testing without the device: holding "b" is a finger on the sensor, releasing it lifts the finger.
+// let isKeyFingerOn = false;
+// document.addEventListener('keydown', (event) => {
+//   if (event.key.toLowerCase() !== 'b' || event.repeat || isKeyFingerOn) return;
+//   isKeyFingerOn = true;
+//   onDeviceMessage('finger-on');
+// });
+// function keyFingerOff() {
+//   if (!isKeyFingerOn) return;
+//   isKeyFingerOn = false;
+//   onDeviceMessage('finger-off');
+// }
+// document.addEventListener('keyup', (event) => event.key.toLowerCase() === 'b' && keyFingerOff());
+// // the keyup never comes if the window loses focus while "b" is held
+// window.addEventListener('blur', keyFingerOff);
 
 // The cursor hides after a few seconds without mouse movement, so it doesn't stay on the installation's screen.
 let hideCursorTimeout;
