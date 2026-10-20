@@ -24,15 +24,15 @@ const sessionAudioFile = 'session-audio1.mp3';
 const fakeVideos1 = [
   // 'videos/fake-video-1.mp4', charli cafe
   // 'videos/fake-video-2.mp4', 
-  'videos/bb-wip-center-1.mov',
-  'videos/bb-wip-center-2.mov',
-  'videos/bb-wip-center-3.mov'
+  'videos/bb-wip-center-1.mp4',
+  'videos/bb-wip-center-2.mp4',
+  'videos/bb-wip-center-3.mp4'
 ];
 const fakeVideos2 = [
   // 'videos/fake-video-3.mp4', lali ccenter 
-  'videos/bb-wip-cafe-1.mov',
-  'videos/bb-wip-cafe-2.mov',
-  'videos/bb-wip-cafe-3.mov'
+  'videos/bb-wip-cafe-1.mp4',
+  'videos/bb-wip-cafe-2.mp4',
+  'videos/bb-wip-cafe-3.mp4'
 ];
 
 // variables
@@ -221,6 +221,11 @@ function endSession() {
     videoContainer.style.display = 'none';
     fakeVideoContainer.style.display = 'none';
     privacyNotice.style.display = 'none';
+
+    // Hiding the fake video doesn't stop it: it keeps looping and downloading from the bucket, so it is unloaded.
+    fakeVideo.pause();
+    fakeVideo.removeAttribute('src');
+    fakeVideo.load();
 
     isStarted = false;
     isExperience = false;
