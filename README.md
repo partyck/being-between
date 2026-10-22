@@ -86,6 +86,8 @@ gcloud beta run domain-mappings create --service=being-between --domain=being-be
 
 Cloud Run closes the connection to each installation every 60 minutes, and every deploy closes it too. The web app reconnects on its own, but the video can stutter for a moment, so avoid deploying while the exhibition is open.
 
+The installations only connect to the server during opening hours, Monday to Saturday 10:00–20:00 (UTC+3), because Cloud Run charges for every hour an installation is connected. Outside those hours, a visitor gets the pre-recorded video. The hours are `openingHours` in `server/src/static/script.js`: change them there and deploy.
+
 ## Raspberry Pi
 Each installation is a Raspberry Pi with Raspberry Pi OS (with desktop) and Chromium. `raspberry-pi/setup-kiosk.sh` makes it open the web app full screen at every boot: it logs into the desktop on its own, keeps the screen on, reopens Chromium if it closes, and lets the page use the camera and the esp32 without asking.
 
