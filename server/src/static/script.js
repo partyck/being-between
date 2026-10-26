@@ -12,8 +12,9 @@ const connectDeviceButton = document.getElementById('connect-device');
 // constants
 const params = new URLSearchParams(document.location.search);
 const DEVICE_ID = parseInt(params.get("deviceid"), 10);
-// the server only accepts the two installations: device id 1 or 2, with the installation key when it has one
-const socket = io({ auth: { deviceId: DEVICE_ID, key: params.get('key') } });
+// the server only accepts the two installations: device id 1 or 2, with the installation key when it has one.
+// It only connects during opening hours (openingHours).
+const socket = io({ autoConnect: false, auth: { deviceId: DEVICE_ID, key: params.get('key') } });
 const room = 'video-room';
 const searchDuration = 20;
 const sessionDuration = 100;
@@ -29,11 +30,22 @@ const fakeVideos1 = [
   'videos/bb-wip-center-3.mp4'
 ];
 const fakeVideos2 = [
-  // 'videos/fake-video-3.mp4', lali ccenter 
+  // 'videos/fake-video-3.mp4', lali center 
   'videos/bb-wip-cafe-1.mp4',
   'videos/bb-wip-cafe-2.mp4',
   'videos/bb-wip-cafe-3.mp4'
 ];
+// The socket is only connected during opening hours, the same for both installations, because Cloud Run bills every
+// hour a page is connected at the full rate. Opening and closing time for each day of the week from Sunday, in
+// openingTimeZone, or null when closed. 'Etc/GMT-3' is UTC+3 all year (Etc/GMT zones have the sign reversed). A city's
+// zone, like 'Europe/Athens', also follows summer time.
+const openingTimeZone = 'Etc/GMT-3';
+const openingHours = [
+  null, // Sunday
+  ...Array(6).fill(['10:00', '20:00']), // Monday to Saturday
+];
+const openingHoursCheckInterval = 30;
+const timeSyncInterval = 60 * 60;
 
 // variables
 let audioPlayer = null;
@@ -235,6 +247,73 @@ function endSession() {
   }, 500);
 }
 
+
+// --- Opening hours ---
+// The time comes from the server, from the Date header of a request, because the Raspberry Pis' clock or time zone may
+// be wrong. performance.now() counts on from there, unaffected by changes to the device's clock.
+let serverTime = null; // milliseconds since 1970 at the last sync, null until the first one
+let serverTimeSyncedAt = 0; // performance.now() at the last sync
+let isConnectionWanted = false;
+const openingClock = new Intl.DateTimeFormat('en-US', {
+  timeZone: openingTimeZone, weekday: 'short', hour: 'numeric', minute: 'numeric', hourCycle: 'h23',
+});
+const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+async function syncTime() {
+  try {
+    const sentAt = performance.now();
+    const response = await fetch('styles.css', { method: 'HEAD', cache: 'no-store' });
+    const receivedAt = performance.now();
+    const date = Date.parse(response.headers.get('Date'));
+    if (isNaN(date)) throw new Error('no Date header');
+    // the header is rounded down to the second, and the server wrote it about halfway through the request
+    serverTime = date + 500;
+    serverTimeSyncedAt = (sentAt + receivedAt) / 2;
+    console.log('🕒 Server time:', new Date(now()).toISOString());
+  } catch (error) {
+    console.error('❌ Could not get the time from the server:', error);
+  }
+}
+
+// milliseconds since 1970, from the device's clock only until the server's time is known
+function now() {
+  return serverTime === null ? Date.now() : serverTime + performance.now() - serverTimeSyncedAt;
+}
+
+function isOpenAt(time) {
+  const parts = Object.fromEntries(openingClock.formatToParts(time).map(part => [part.type, part.value]));
+  const hours = openingHours[weekdays.indexOf(parts.weekday)];
+  const minute = Number(parts.hour) * 60 + Number(parts.minute);
+  return hours !== null && toMinutes(hours[0]) <= minute && minute < toMinutes(hours[1]);
+}
+
+function toMinutes(time) {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+// Connects at opening time and disconnects at closing time, after the session if one is running.
+// A connection the server closed (another page with the same device id replaced this one) stays closed until then.
+function updateConnection() {
+  const isOpen = isOpenAt(now());
+  if (isOpen === isConnectionWanted || (!isOpen && isStarted)) return;
+  isConnectionWanted = isOpen;
+  if (isOpen) {
+    console.log('🕒 Open, connecting');
+    // drops what was emitted while disconnected, like the 'start' of a session outside opening hours
+    socket.sendBuffer = [];
+    socket.connect();
+  } else {
+    console.log('🕒 Closed, disconnecting');
+    socket.disconnect();
+  }
+}
+
+syncTime().then(updateConnection);
+setInterval(async () => {
+  if (serverTime === null || performance.now() - serverTimeSyncedAt > timeSyncInterval * 1000) await syncTime();
+  updateConnection();
+}, openingHoursCheckInterval * 1000);
 
 
 // --- Socket.IO Signaling ---
@@ -479,20 +558,20 @@ else {
 }
 
 // For testing without the device: holding "b" is a finger on the sensor, releasing it lifts the finger.
-// let isKeyFingerOn = false;
-// document.addEventListener('keydown', (event) => {
-//   if (event.key.toLowerCase() !== 'b' || event.repeat || isKeyFingerOn) return;
-//   isKeyFingerOn = true;
-//   onDeviceMessage('finger-on');
-// });
-// function keyFingerOff() {
-//   if (!isKeyFingerOn) return;
-//   isKeyFingerOn = false;
-//   onDeviceMessage('finger-off');
-// }
-// document.addEventListener('keyup', (event) => event.key.toLowerCase() === 'b' && keyFingerOff());
-// // the keyup never comes if the window loses focus while "b" is held
-// window.addEventListener('blur', keyFingerOff);
+let isKeyFingerOn = false;
+document.addEventListener('keydown', (event) => {
+  if (event.key.toLowerCase() !== 'b' || event.repeat || isKeyFingerOn) return;
+  isKeyFingerOn = true;
+  onDeviceMessage('finger-on');
+});
+function keyFingerOff() {
+  if (!isKeyFingerOn) return;
+  isKeyFingerOn = false;
+  onDeviceMessage('finger-off');
+}
+document.addEventListener('keyup', (event) => event.key.toLowerCase() === 'b' && keyFingerOff());
+// the keyup never comes if the window loses focus while "b" is held
+window.addEventListener('blur', keyFingerOff);
 
 // The cursor hides after a few seconds without mouse movement, so it doesn't stay on the installation's screen.
 let hideCursorTimeout;

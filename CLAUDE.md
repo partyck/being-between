@@ -49,6 +49,14 @@ For testing without the device, holding the "b" key sends `finger-on` and releas
 
 During a session, `finger-off` only shows "Please keep your finger on the device", and only while a video is on screen (`updateFingerMisplaced()`). If the finger was lifted on the connecting screen, the message appears when the video starts.
 
+### Opening hours (`script.js`)
+
+The socket only connects during opening hours, because Cloud Run bills every hour a page is connected at the full rate. `openingHours` is one schedule for both installations, per day of the week in `openingTimeZone`: Monday to Saturday 10:00–20:00, closed on Sunday. Device 1 is in the Swimming Birds cafe and device 2 in an exhibition space, and these are the hours when both are open. The zone is `Etc/GMT-3`, UTC+3 all year (Etc/GMT zones have the sign reversed). A city's zone would also follow summer time. Closing times after midnight are not supported.
+- **Time:** it comes from the `Date` header of a `HEAD` request for `styles.css`, not from the Pi's clock or time zone. `performance.now()` counts on from it, and it syncs again every hour. Until the first sync, it uses the device clock.
+- **`updateConnection()`:** runs every 30 s. At opening time, it calls `socket.connect()` (the socket is created with `autoConnect: false`) after emptying `socket.sendBuffer`, because Socket.IO keeps what was emitted while disconnected and would send it on connect. At closing time, it calls `socket.disconnect()`, after the session if one is running.
+- **Outside opening hours:** sessions still work, but always as the fake experience. The cafe is open longer than these hours.
+- **Testing outside opening hours:** change `openingHours` for the test. A page the server disconnected (replaced by another one with the same device id) only connects again at the next opening.
+
 ## Firmware
 
 - **Board:** `esp32dev` with a CP2102 USB chip. On the Mac it appears as `/dev/cu.usbserial-0001`. `/dev/cu.SLAB_USBtoUART` is the same board, not a second one.
@@ -96,7 +104,7 @@ There are no automated tests.
 
 ## Deployment
 
-- **Server:** deployed on GCP Cloud Run, service `being-between` in `europe-west1` (Belgium), project `being-between-510716`. `make videos` uploads the videos to a public bucket, and `make deploy` deploys from source with Cloud Build (README).
+- **Server:** deployed on GCP Cloud Run, service `being-between` in `europe-west1` (Belgium), project `being-between-510716`. `make videos` uploads the videos to a public bucket, and `make deploy` deploys from source with Cloud Build (README). `make delete` asks, then deletes all of it again except the project: the domain mapping, the service, both buckets, the images and the secret. Its lines start with `-`, so it goes on past resources that are already gone.
   - The installations open `https://being-between.porpatrick.com/?deviceid=1&key=<key>` and `/?deviceid=2&key=<key>`. The domain is a Cloud Run domain mapping, which is why the region is `europe-west1`: domain mappings don't exist in every region. The service URL `https://being-between-4pqnsszcqa-ew.a.run.app` also works, but it is a different origin, so the browser asks again for the camera and the serial port.
   - The DNS is in Cloudflare: a CNAME `being-between` → `ghs.googlehosted.com`. Keep it DNS only (not proxied): Google issues and renews the HTTPS certificate for the mapping, and that needs the name to point at Google.
   - The videos are in the public bucket `being-between-510716-videos`, in `europe-central2`. The region doesn't matter, because browsers fetch the videos from it directly. Cloud Run has `VIDEOS_URL` set to it.
