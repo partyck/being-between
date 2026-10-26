@@ -5,6 +5,8 @@ PROJECT ?= being-between-510716
 # europe-west1, because Cloud Run domain mappings (being-between.porpatrick.com) only exist in some regions
 REGION ?= europe-west1
 SERVICE ?= being-between
+# the Cloud Run domain mapping, created by hand (README). `make delete` deletes it.
+DOMAIN ?= being-between.porpatrick.com
 BUCKET ?= $(PROJECT)-videos
 VIDEOS_URL ?= https://storage.googleapis.com/$(BUCKET)
 # the Secret Manager secret with the installation key of the deployed server (README)
@@ -17,7 +19,7 @@ GCLOUD = gcloud --configuration=$(GCLOUD_CONFIG) --project=$(PROJECT)
 -include .env
 export INSTALLATION_KEY
 
-.PHONY: run docker videos secret key new-key deploy gcp
+.PHONY: run docker videos secret key new-key deploy delete gcp
 
 # local server, on HTTPS when server/certs has the certificates
 run:
@@ -65,6 +67,18 @@ deploy: gcp
 		--allow-unauthenticated --cpu=1 --memory=512Mi --min-instances=1 --max-instances=1 --timeout=3600 \
 		--set-env-vars=VIDEOS_URL=$(VIDEOS_URL) \
 		--set-secrets=INSTALLATION_KEY=$(SECRET):$$version
+
+# after asking, deletes everything the deployed server uses, so GCP stops charging: the domain mapping, the service, the
+# videos bucket, the source uploads and images of `run deploy --source`, and the installation key. The project stays.
+# The lines starting with - go on when their resource is already gone. To bring it back: secret, videos, deploy (README).
+delete: gcp
+	@printf 'Delete the server, the videos and the installation key of $(PROJECT)? [y/N] '; read answer; test "$$answer" = y
+	-$(GCLOUD) beta run domain-mappings delete --domain=$(DOMAIN) --region=$(REGION) --quiet
+	-$(GCLOUD) run services delete $(SERVICE) --region=$(REGION) --quiet
+	-$(GCLOUD) storage rm -r gs://$(BUCKET)
+	-$(GCLOUD) storage rm -r gs://run-sources-$(PROJECT)-$(REGION)
+	-$(GCLOUD) artifacts repositories delete cloud-run-source-deploy --location=$(REGION) --quiet
+	-$(GCLOUD) secrets delete $(SECRET) --quiet
 
 gcp:
 	@test -n "$(PROJECT)" || { echo "No GCP project: set PROJECT at the top of the Makefile or pass PROJECT=<id>"; exit 1; }

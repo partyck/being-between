@@ -88,6 +88,12 @@ Cloud Run closes the connection to each installation every 60 minutes, and every
 
 The installations only connect to the server during opening hours, Monday to Saturday 10:00–20:00 (UTC+3), because Cloud Run charges for every hour an installation is connected. Outside those hours, a visitor gets the pre-recorded video. The hours are `openingHours` in `server/src/static/script.js`: change them there and deploy.
 
+When the exhibition is over, delete everything the server uses in GCP, so nothing is charged any more:
+```bash
+make delete
+```
+It asks first, then deletes the domain mapping, the Cloud Run service, the videos bucket, the build uploads and images, and the installation key. The project stays. Also remove the CNAME in Cloudflare. To show the installation again, run `make secret`, `make videos` and `make deploy`, recreate the domain mapping and the CNAME, and update the URL on both installations (the key is new).
+
 ## Raspberry Pi
 Each installation is a Raspberry Pi with Raspberry Pi OS (with desktop) and Chromium. `raspberry-pi/setup-kiosk.sh` makes it open the web app full screen at every boot: it logs into the desktop on its own, keeps the screen on, reopens Chromium if it closes, and lets the page use the camera and the esp32 without asking.
 

@@ -104,7 +104,7 @@ There are no automated tests.
 
 ## Deployment
 
-- **Server:** deployed on GCP Cloud Run, service `being-between` in `europe-west1` (Belgium), project `being-between-510716`. `make videos` uploads the videos to a public bucket, and `make deploy` deploys from source with Cloud Build (README).
+- **Server:** deployed on GCP Cloud Run, service `being-between` in `europe-west1` (Belgium), project `being-between-510716`. `make videos` uploads the videos to a public bucket, and `make deploy` deploys from source with Cloud Build (README). `make delete` asks, then deletes all of it again except the project: the domain mapping, the service, both buckets, the images and the secret. Its lines start with `-`, so it goes on past resources that are already gone.
   - The installations open `https://being-between.porpatrick.com/?deviceid=1&key=<key>` and `/?deviceid=2&key=<key>`. The domain is a Cloud Run domain mapping, which is why the region is `europe-west1`: domain mappings don't exist in every region. The service URL `https://being-between-4pqnsszcqa-ew.a.run.app` also works, but it is a different origin, so the browser asks again for the camera and the serial port.
   - The DNS is in Cloudflare: a CNAME `being-between` → `ghs.googlehosted.com`. Keep it DNS only (not proxied): Google issues and renews the HTTPS certificate for the mapping, and that needs the name to point at Google.
   - The videos are in the public bucket `being-between-510716-videos`, in `europe-central2`. The region doesn't matter, because browsers fetch the videos from it directly. Cloud Run has `VIDEOS_URL` set to it.
