@@ -1,85 +1,211 @@
-/* styles.css */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-body {
-  font-family: Arial, sans-serif;
-  background-color: #f0f2f5;
-}
+  body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
+  /* script.js adds it after a few seconds without mouse movement. !important because .connect-btn sets its own cursor */
+  body.hide-cursor,
+  body.hide-cursor * {
+    cursor: none !important;
+  }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+  .background {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+  }
 
-.room-info {
-  display: flex;
-  gap: 10px;
-}
+  .background canvas {
+    display: block;
+    /* background.js draws a small canvas, stretched here to the whole screen. !important because p5 sets its size inline */
+    width: 100% !important;
+    height: 100% !important;
+  }
 
-#room-input {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
+  .container {
+    max-width: 800px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+  }
 
-button {
-  padding: 8px 16px;
-  background-color: #966FD6;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
+  /* Initial Connect Screen */
+  .home {
+    position: absolute;
+    top: 0;
+    z-index: 10;
+    text-align: center;
+    color: white;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 40px;
+  }
 
-button:hover {
-  background-color: #734F96;
-}
+  .artwork-title {
+    font-size: 4em;
+    font-weight: 100;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    margin-bottom: 60px;
+  }
 
-.video-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
-}
+  .finger-misplaced {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 40px;
+    font-size: 1em;
+    font-weight: 100;
+    color: white;
+    margin: 0 auto;
+    text-align: center;
+  }
 
-.video-item {
-  position: relative;
-  background-color: #000;
-  border-radius: 8px;
-  overflow: hidden;
-  aspect-ratio: 16/9;
-}
+  /* hidden until a video is shown, see script.js */
+  .privacy-notice {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1;
+    font-size: 1em;
+    font-weight: 100;
+    color: white;
+    text-align: right;
+    /* readable over bright videos too */
+    padding: 8px 12px;
+    border-radius: 6px;
+  }
 
-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+  .connect-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 20px 50px;
+    font-size: 1.3em;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+  }
 
-.user-label {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
+  .connect-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: translateY(-3px);
+  }
 
-.controls {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-}
+  .connect-btn:disabled {
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .device-btn {
+    margin-top: 40px;
+    padding: 10px 30px;
+    font-size: 1em;
+  }
+
+  /* Video Interface */
+  .video-interface {
+    display: none;
+    height: 100vh;
+    width: 100vw;
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+
+  /* transparent, like .video-interface, so the moving background shows through */
+  .connecting-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+  }
+
+  .connecting-message {
+    text-align: center;
+    color: white;
+  }
+
+  /* small line drawing of the device from above, with a hand on it and the sensor in red */
+  .device-drawing {
+    display: block;
+    height: 14vh;
+    margin: 40px auto 0;
+  }
+
+  .connecting-message h2 {
+    font-size: 3em;
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .connecting-message p {
+    font-size: 1.5em;
+    margin-bottom: 30px;
+  }
+
+  .video-container {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: #000;
+    display: none;
+  }
+
+  .video-item {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background: #000;
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  /* Loading animation */
+  .loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(360deg);
+    }
+  }

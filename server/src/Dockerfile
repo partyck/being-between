@@ -1,10 +1,13 @@
-ARG VARIANT="3.11-bookworm"
-FROM mcr.microsoft.com/devcontainers/python:${VARIANT}
+FROM python:3.11-slim
 
-WORKDIR /being-between
+# logs show up in Cloud Run right away, and no debugger or reloader
+ENV PYTHONUNBUFFERED=1 \
+    DEBUG=0
+
+WORKDIR /app
 COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python3", "main.py"]
+CMD ["python", "main.py"]

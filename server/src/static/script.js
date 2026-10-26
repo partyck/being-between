@@ -1,29 +1,49 @@
-const socket = io();
-const connectScreen = document.getElementById('connect-screen');
+const homeScreen = document.getElementById('home');
 const videoInterface = document.getElementById('video-interface');
-const connectBtn = document.getElementById('connect-btn');
 const connectingScreen = document.getElementById('connecting-screen');
 const videoContainer = document.getElementById('video-container');
 const remoteVideo = document.getElementById('remote-video');
+const fakeVideoContainer = document.getElementById('fake-video-container');
+const fakeVideo = document.getElementById('fake-video');
+const fingerMisplaced = document.getElementById('finger-misplaced');
+const privacyNotice = document.getElementById('privacy-notice');
+const connectDeviceButton = document.getElementById('connect-device');
 
 // constants
-let params = new URLSearchParams(document.location.search);
+const params = new URLSearchParams(document.location.search);
 const DEVICE_ID = parseInt(params.get("deviceid"), 10);
+// the server only accepts the two installations: device id 1 or 2, with the installation key when it has one
+const socket = io({ auth: { deviceId: DEVICE_ID, key: params.get('key') } });
 const room = 'video-room';
 const searchDuration = 20;
-const sessionDuration = 193;
+const sessionDuration = 100;
 const espDuration = 43;
+const cursorHideDuration = 3;
 const connectingAudioFile = 'connecting-audio1.mp3';
 const sessionAudioFile = 'session-audio1.mp3';
-const videoFiles = [
-  'fake-video-1.mp4',
-  'fake-video-2.mp4',
+const fakeVideos1 = [
+  // 'videos/fake-video-1.mp4', charli cafe
+  // 'videos/fake-video-2.mp4', 
+  'videos/bb-wip-center-1.mp4',
+  'videos/bb-wip-center-2.mp4',
+  'videos/bb-wip-center-3.mp4'
+];
+const fakeVideos2 = [
+  // 'videos/fake-video-3.mp4', lali ccenter 
+  'videos/bb-wip-cafe-1.mp4',
+  'videos/bb-wip-cafe-2.mp4',
+  'videos/bb-wip-cafe-3.mp4'
 ];
 
 // variables
 let audioPlayer = null;
-let isConnected = false;
+let isStarted = false;
+let isOtherConnected = false;
 let isExperience = false;
+let isSendingHeartbeat = false;
+let isHeartbeatPlaying = false;
+let isFingerOn = false;
+let deviceWriter = null;
 let localStream;
 let peerConnection;
 let iceCandidateQueue = [];
@@ -35,20 +55,6 @@ const config = {
   ],
 };
 
-
-connectBtn.addEventListener('click', async () => {
-  connectBtn.disabled = true;
-  connectBtn.style.opacity = '0.7';
-
-  connectScreen.style.display = 'none';
-  videoInterface.style.display = 'block';
-
-  console.log('joining...');
-  socket.emit('join', { room: room });
-
-  await startAudio(connectingAudioFile);
-  await startSearchTimeout();
-});
 
 async function startAudio(audio) {
   if (audioPlayer) {
@@ -63,7 +69,7 @@ async function startAudio(audio) {
     audioPlayer.volume = 0.6;
 
     audioPlayer.onended = () => {
-      console.log('✅ Audio finished naturally');
+      // console.log('✅ Audio finished naturally');
       audioPlayer = null;
     };
 
@@ -76,18 +82,26 @@ async function startAudio(audio) {
   }
 }
 
+async function startSession() {
+  console.log('👆 finger placed, starting session');
+  isStarted = true;
+  socket.emit('start', { deviceId: DEVICE_ID });
+  homeScreen.style.display = 'none';
+  videoInterface.style.display = 'block';
+  await startAudio(connectingAudioFile);
+  await startSearchTimeout();
+}
+
 async function startSearchTimeout() {
   console.log(`⏰ Starting search timeout: ${searchDuration} seconds`);
   setTimeout(() => {
-    console.log(`⏰ Search timeout reached. isConnected: ${isConnected}`);
-    if (isConnected) {
-      console.log('startExperience');
+    console.log(`⏰ Search timeout reached. is other connected? ${isOtherConnected}`);
+    if (isOtherConnected) {
+      console.log('📞 Start Experience');
       startExperience();
     }
     else {
-      console.log('leaving room..');
-      socket.emit('leave', { room: room });
-      console.log('start fake Experience');
+      console.log('📞🥸 Start fake Experience');
       startFakeExperience();
     }
   }, searchDuration * 1000);
@@ -98,6 +112,8 @@ function startExperience() {
   startAudio(sessionAudioFile);
   connectingScreen.style.display = 'none';
   videoContainer.style.display = 'block';
+  privacyNotice.style.display = 'block';
+  updateFingerMisplaced();
   isExperience = true;
   startSessionTimer();
   startEspTimmer();
@@ -105,27 +121,40 @@ function startExperience() {
 
 function startFakeExperience() {
   console.log('started fake experience');
-  let videoIndex = Math.floor(Math.random() * videoFiles.length);
-  const selectedVideo = videoFiles[videoIndex];
+  const videos = DEVICE_ID === 1 ? fakeVideos1 : fakeVideos2;
+  const videoIndex = Math.floor(Math.random() * videos.length);
+  const selectedVideo = videos[videoIndex];
   console.log('📺 Using video:', selectedVideo, 'Index:', videoIndex);
 
-  remoteVideo.srcObject = null;
-  remoteVideo.src = selectedVideo;
-  remoteVideo.autoplay = true;
-  remoteVideo.loop = true;
-  remoteVideo.muted = true;
+  fakeVideo.srcObject = null;
+  fakeVideo.src = selectedVideo;
+  fakeVideo.autoplay = true;
+  fakeVideo.loop = true;
+  fakeVideo.muted = true;
 
-  remoteVideo.onloadeddata = function () {
-    console.log('✅ Video loaded successfully');
+  // Chrome fires 'loadeddata' while the video is still paused on its first frame, so it is shown only once it plays.
+  // Without the kiosk's autoplay flag, Chrome doesn't autoplay a hidden video, so it is started here.
+  fakeVideo.oncanplaythrough = function () {
+    fakeVideo.oncanplaythrough = null;
+    fakeVideo.play().catch(error => console.log('❌ Video failed to play:', error));
+  };
+
+  fakeVideo.onplaying = function () {
+    // only the first time: 'playing' fires again after every stall
+    fakeVideo.onplaying = null;
+    console.log('✅ Video playing');
     connectingScreen.style.display = 'none';
-    videoContainer.style.display = 'block';
+    fakeVideoContainer.style.display = 'block';
+    privacyNotice.style.display = 'block';
+    updateFingerMisplaced();
     isExperience = true;
+    socket.emit('experience-started', { deviceId: DEVICE_ID });
     startAudio(sessionAudioFile);
     startSessionTimer();
     startFakeEspTimmer();
   };
 
-  remoteVideo.onerror = function (error) {
+  fakeVideo.onerror = function (error) {
     console.log('❌ Video failed to load:', error);
   };
 }
@@ -134,7 +163,8 @@ function startEspTimmer() {
   console.log(`⏰ Starting esp timeout: ${espDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Esp timeout reached.`);
-    socket.emit('start-beat', { deviceId: DEVICE_ID });
+    isSendingHeartbeat = true;
+    sendHeartbeat();
   }, espDuration * 1000);
 }
 
@@ -142,20 +172,24 @@ function startFakeEspTimmer() {
   console.log(`⏰ Starting esp fake timeout: ${espDuration} seconds`);
   setTimeout(() => {
     console.log(`⏰ Esp fake timeout reached.`);
-    sendFakeBeat();
-    socket.emit('beat', { deviceId: other_device });
-
+    isHeartbeatPlaying = true;
   }, espDuration * 1000);
 }
 
-let sendFakeBeat = () => {
-  if (isExperience) {
+// The heartbeat is always a fake one at 60 bpm, because the sensor takes too long to find real beats.
+// In the real experience it plays while the other visitor's finger is on their sensor ('heartbeat'),
+// in the fake experience from espDuration on. It runs on a steady clock, so a flickering finger can't add beats.
+setInterval(() => {
+  if (isHeartbeatPlaying) {
     console.log(`❤️ beat!`);
-    let other_device = DEVICE_ID == 1 ? 2 : 1;
-    socket.emit('beat', { deviceId: other_device })
-    setTimeout(() => sendFakeBeat(), 1000);
+    vibrate();
   }
-};
+}, 1000);
+
+// tells the other installation whether to play this visitor's heartbeat
+function sendHeartbeat() {
+  socket.emit('heartbeat', { deviceId: DEVICE_ID, on: isSendingHeartbeat && isFingerOn });
+}
 
 function startSessionTimer() {
   console.log(`⏰ Starting session timeout: ${sessionDuration} seconds`);
@@ -167,21 +201,6 @@ function startSessionTimer() {
 
 function endSession() {
   console.log(`End session.`);
-  if (localStream) {
-    localStream.getTracks().forEach(track => track.stop());
-  }
-
-  if (peerConnection) {
-    peerConnection.close();
-  }
-
-  remoteVideo.srcObject = null;
-  remoteVideo.src = '';
-  remoteVideo.pause();
-  remoteVideo.currentTime = 0;
-  remoteVideo.onloadeddata = null;
-  remoteVideo.onerror = null;
-
 
   if (audioPlayer) {
     audioPlayer.pause();
@@ -189,22 +208,30 @@ function endSession() {
     audioPlayer = null;
   }
 
-  socket.emit('stop-beat', { deviceId: DEVICE_ID });
-  socket.emit('leave', { room: room });
+  if (isSendingHeartbeat) {
+    isSendingHeartbeat = false;
+    sendHeartbeat();
+  }
 
   setTimeout(() => {
     videoInterface.style.display = 'none';
-    connectScreen.style.display = 'flex';
-    connectBtn.disabled = false;
-    connectBtn.style.opacity = '1';
-
-    isConnected = false;
-    isExperience = false;
-    localStream = null;
-    peerConnection = null;
-
+    homeScreen.style.display = 'flex';
+    fingerMisplaced.style.display = 'none';
     connectingScreen.style.display = 'flex';
     videoContainer.style.display = 'none';
+    fakeVideoContainer.style.display = 'none';
+    privacyNotice.style.display = 'none';
+
+    // Hiding the fake video doesn't stop it: it keeps looping and downloading from the bucket, so it is unloaded.
+    fakeVideo.pause();
+    fakeVideo.removeAttribute('src');
+    fakeVideo.load();
+
+    isStarted = false;
+    isExperience = false;
+    isHeartbeatPlaying = false;
+    isOtherConnected = false;
+
   }, 500);
 }
 
@@ -213,13 +240,53 @@ function endSession() {
 // --- Socket.IO Signaling ---
 socket.on('connect', () => {
   console.log('socket connected');
+  socket.emit('join', { room: room });
+});
+
+// a wrong device id or key, or the server can't be reached
+socket.on('connect_error', (error) => {
+  console.error('❌ Socket connection error:', error.message);
+});
+
+// "io server disconnect": another page connected with the same device id and replaced this one
+socket.on('disconnect', (reason) => {
+  console.log('socket disconnected:', reason);
+});
+
+socket.on('experience-started', (data) => {
+  console.log(`Fake experience started from: ${data.deviceId}`);
+  if (!isExperience) {
+    isOtherConnected = false;
+
+    homeScreen.style.display = 'flex';
+    connectingScreen.style.display = 'flex';
+    fingerMisplaced.style.display = 'none';
+    videoInterface.style.display = 'none';
+    videoContainer.style.display = 'none';
+    fakeVideoContainer.style.display = 'none';
+    privacyNotice.style.display = 'none';
+  }
+});
+
+socket.on('start', (data) => {
+  console.log(`start ${data.deviceId}`);
+  isOtherConnected = !isExperience;
+  connectingScreen.style.display = 'none';
+  videoContainer.style.display = 'block';
+  privacyNotice.style.display = 'block';
+  updateFingerMisplaced();
+  videoInterface.style.display = 'block';
+});
+
+// the other visitor's finger went on or off their sensor, in the real experience
+socket.on('heartbeat', (data) => {
+  if (isExperience) isHeartbeatPlaying = data.on;
 });
 
 socket.on('peer_joined', (data) => {
   console.log('A new peer has joined the room.');
   // When a new peer joins, the existing peer will create and send an offer
   createPeerConnection();
-  isConnected = true;
 
   navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     .then(stream => {
@@ -252,7 +319,6 @@ socket.on('signal', (data) => {
   if (data.desc) {
     if (data.desc.type === 'offer' && !peerConnection) {
       createPeerConnection();
-      isConnected = true;
       navigator.mediaDevices.getUserMedia({ video: true, audio: false })
         .then(stream => {
           localStream = stream;
@@ -325,3 +391,115 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     localStream = stream;
   })
   .catch(e => console.error(e));
+
+
+// "Please keep your finger on the device": only during a session, over a video
+function updateFingerMisplaced() {
+  const isVideoShown = videoContainer.style.display === 'block' || fakeVideoContainer.style.display === 'block';
+  fingerMisplaced.style.display = isStarted && !isFingerOn && isVideoShown ? 'block' : 'none';
+}
+
+// --- Device (esp32 over Web Serial) ---
+// one message per line: "finger-on", "finger-off" and "beat" from the esp32, "vibrate" to it.
+function onDeviceMessage(message) {
+  switch (message) {
+    case 'finger-on':
+      isFingerOn = true;
+      updateFingerMisplaced();
+      if (!isStarted) startSession();
+      if (isSendingHeartbeat) sendHeartbeat();
+      break;
+    case 'finger-off':
+      isFingerOn = false;
+      updateFingerMisplaced();
+      if (isSendingHeartbeat) sendHeartbeat();
+      break;
+    case 'beat':
+      // ignored: the sensor takes too long to find beats, so the other installation plays a fake heartbeat
+      break;
+    default:
+      console.log('📟 device:', message);
+  }
+}
+
+function vibrate() {
+  if (!deviceWriter) return;
+  deviceWriter.write(new TextEncoder().encode('vibrate\n')).catch(e => console.error(e));
+}
+
+async function connectDevice(port) {
+  if (deviceWriter) return;
+  try {
+    await port.open({ baudRate: 115200 });
+  } catch (error) {
+    console.error('❌ Could not open device:', error);
+    return;
+  }
+  console.log('🔌 Device connected');
+  deviceWriter = port.writable.getWriter();
+  connectDeviceButton.style.display = 'none';
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (port.readable) {
+    const reader = port.readable.getReader();
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        lines.map(line => line.trim()).filter(Boolean).forEach(onDeviceMessage);
+      }
+    } catch (error) {
+      console.error('❌ Device read error:', error);
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  console.log('🔌 Device disconnected');
+  deviceWriter.releaseLock();
+  deviceWriter = null;
+  await port.close().catch(() => {});
+  connectDeviceButton.style.display = '';
+}
+
+if ('serial' in navigator) {
+  // Previously paired devices reconnect on their own: on page load and when plugged back in.
+  navigator.serial.getPorts().then(([port]) => port && connectDevice(port));
+  navigator.serial.addEventListener('connect', (event) => connectDevice(event.target));
+  connectDeviceButton.addEventListener('click', () => {
+    navigator.serial.requestPort().then(connectDevice).catch(e => console.error(e));
+  });
+}
+else {
+  console.error('❌ Web Serial is not supported in this browser, use Chrome or Edge.');
+}
+
+// For testing without the device: holding "b" is a finger on the sensor, releasing it lifts the finger.
+// let isKeyFingerOn = false;
+// document.addEventListener('keydown', (event) => {
+//   if (event.key.toLowerCase() !== 'b' || event.repeat || isKeyFingerOn) return;
+//   isKeyFingerOn = true;
+//   onDeviceMessage('finger-on');
+// });
+// function keyFingerOff() {
+//   if (!isKeyFingerOn) return;
+//   isKeyFingerOn = false;
+//   onDeviceMessage('finger-off');
+// }
+// document.addEventListener('keyup', (event) => event.key.toLowerCase() === 'b' && keyFingerOff());
+// // the keyup never comes if the window loses focus while "b" is held
+// window.addEventListener('blur', keyFingerOff);
+
+// The cursor hides after a few seconds without mouse movement, so it doesn't stay on the installation's screen.
+let hideCursorTimeout;
+function showCursor() {
+  document.body.classList.remove('hide-cursor');
+  clearTimeout(hideCursorTimeout);
+  hideCursorTimeout = setTimeout(() => document.body.classList.add('hide-cursor'), cursorHideDuration * 1000);
+}
+document.addEventListener('mousemove', showCursor);
+showCursor();
